@@ -1,0 +1,17 @@
+# Development dependencies (not needed for building)
+# Install with: pip install -r requirements.txt
+
+# For building the package (if not using python -m build)
+build>=1.2
+
+# Development and testing tools
+pytest>=7.0
+pytest-cov>=4.0
+black>=23.0
+flake8>=6.0
+mypy>=1.0
+
+# For development builds and editable installs
+scikit-build-core>=0.10
+cmake>=3.20
+ninja>=1.10
