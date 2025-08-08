@@ -49,3 +49,10 @@ add_custom_command(TARGET _pyort POST_BUILD
           "${ONNXRUNTIME_LIB_DIR}/${ONNXRUNTIME_LIB_NAME}.dll"
           $<TARGET_FILE_DIR:_pyort>
 )
+
+# Install the extension module
+install(TARGETS _pyort DESTINATION pyort)
+
+# Install the ONNX Runtime DLL alongside the extension
+install(FILES "${ONNXRUNTIME_LIB_DIR}/${ONNXRUNTIME_LIB_NAME}.dll" 
+        DESTINATION pyort)
