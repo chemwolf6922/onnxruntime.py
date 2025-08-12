@@ -1,4 +1,12 @@
 #include <pybind11/pybind11.h>
+#include <memory>
+
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#endif /** _WIN32 */
+
+/** Use the C API for maximum compatibility */
 #include <onnxruntime_c_api.h>
 
 namespace py = pybind11;
@@ -6,6 +14,191 @@ namespace py = pybind11;
 #ifndef PYORT_VERSION
 #define PYORT_VERSION "0.1.0"
 #endif
+
+#ifdef _WIN32
+static std::wstring StringToWString(const std::string& str)
+{
+    if (str.empty()) {
+        return std::wstring();
+    }
+
+    int size_needed = MultiByteToWideChar(CP_UTF8, 0, str.c_str(), static_cast<int>(str.length()), nullptr, 0);
+    if (size_needed <= 0) {
+        throw std::runtime_error("Failed to convert string to wide string");
+    }
+
+    std::wstring wstr(size_needed, 0);
+    MultiByteToWideChar(CP_UTF8, 0, str.c_str(), static_cast<int>(str.length()), &wstr[0], size_needed);
+    return wstr;
+}
+#define StringToOrtString(str) StringToWString(str)
+#else
+#define StringToOrtString(str) (str)
+#endif /** _WIN32 */
+
+namespace pyort 
+{
+    const OrtApi* GetApi()
+    {
+        static const OrtApi* api = nullptr;
+        if (api == nullptr)
+        {
+            api = OrtGetApiBase()->GetApi(ORT_API_VERSION);
+            if (api == nullptr)
+            {
+                throw std::runtime_error("Failed to get ONNX Runtime API");
+            }
+        }
+        return api;
+    }
+
+    class Status
+    {
+    public:
+        Status(OrtStatus* status)
+            : _status(status)
+        {
+        }
+
+        ~Status()
+        {
+            if (_status) {
+                GetApi()->ReleaseStatus(_status);
+                _status = nullptr;
+            }
+        }
+
+        OrtErrorCode GetErrorCode() const
+        {
+            if (_status == nullptr)
+            {
+                return ORT_OK;
+            }
+            return GetApi()->GetErrorCode(_status);
+        }
+
+        std::string GetErrorMessage() const
+        {
+            if (_status == nullptr)
+            {
+                return "";
+            }
+            return GetApi()->GetErrorMessage(_status);
+        }
+
+        void Check() const
+        {
+            OrtErrorCode code = GetErrorCode();
+            if (code != ORT_OK)
+            {
+                throw std::runtime_error(GetErrorMessage());
+            }
+        }
+
+        operator OrtStatus*() const
+        {
+            return _status;
+        }
+    private:
+        OrtStatus* _status{ nullptr };
+    };
+
+    class Env
+    {
+    public:
+        static std::shared_ptr<Env> GetSingleton()
+        {
+            if (!_instance) 
+            {
+                _instance = std::shared_ptr<Env>(new Env());
+            }
+            return _instance;
+        }
+
+        ~Env()
+        {
+            if (_env) {
+                GetApi()->ReleaseEnv(_env);
+                _env = nullptr;
+            }
+        }
+
+        operator OrtEnv*() const
+        {
+            return _env;
+        }
+
+    private:
+        static std::shared_ptr<Env> _instance;
+
+        OrtEnv* _env{ nullptr };
+
+        Env()
+        {
+            OrtEnv* env = nullptr;
+            Status status = GetApi()->CreateEnv(ORT_LOGGING_LEVEL_WARNING, "pyort", &env);
+            status.Check();
+            _env = env;
+        }
+    };
+
+    class SessionOptions
+    {
+    public:
+        SessionOptions()
+        {
+            OrtSessionOptions* options = nullptr;
+            Status status = GetApi()->CreateSessionOptions(&options);
+            status.Check();
+            _options = options;
+        }
+
+        ~SessionOptions()
+        {
+            if (_options) {
+                GetApi()->ReleaseSessionOptions(_options);
+                _options = nullptr;
+            }
+        }
+
+        operator OrtSessionOptions*() const
+        {
+            return _options;
+        }
+
+    private:
+        OrtSessionOptions* _options{ nullptr };
+    };
+
+    class Session
+    {
+    public:
+        Session(const std::string& modelPath, const SessionOptions& options)
+        {
+            OrtSession* session = nullptr;
+            Status status = GetApi()->CreateSession(
+                *Env::GetSingleton(),
+                StringToOrtString(modelPath).c_str(),
+                options,
+                &session);
+            status.Check();
+            _session = session;
+        }
+
+        ~Session()
+        {
+            if (_session) {
+                GetApi()->ReleaseSession(_session);
+                _session = nullptr;
+            }
+        }
+
+    private:
+        OrtSession* _session{ nullptr };
+    };
+
+    std::shared_ptr<Env> Env::_instance = nullptr;
+}
 
 PYBIND11_MODULE(_pyort, m) {
     m.doc() = "onnxruntime binding build upon C API.";
@@ -98,4 +291,12 @@ PYBIND11_MODULE(_pyort, m) {
         .value("STRING", ORT_OP_ATTR_STRING)
         .value("STRINGS", ORT_OP_ATTR_STRINGS)
         .export_values();
+
+    py::class_<pyort::SessionOptions>(m, "SessionOptions")
+        .def(py::init<>());
+
+    py::class_<pyort::Session, std::shared_ptr<pyort::Session>>(m, "Session")
+        .def(py::init<const std::string&, const pyort::SessionOptions&>(),
+             py::arg("model_path"),
+             py::arg("options"));
 }
