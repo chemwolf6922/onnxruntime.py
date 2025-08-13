@@ -28,10 +28,15 @@ set(ONNXRUNTIME_LIB_DIR "${ONNXRUNTIME_ROOT}/lib")
 set(ONNXRUNTIME_LIB_NAME "onnxruntime")
 
 # Create extension
-pybind11_add_module(_pyort src/pyort/bindings.cpp)
+pybind11_add_module(_pyort
+  src/pyort/Bindings.cpp
+  src/pyort/Pyort.cpp)
 
 # Include and link
 target_include_directories(_pyort PRIVATE "${ONNXRUNTIME_ROOT}/include")
+
+# Add numpy support - this is essential for numpy array handling
+target_compile_definitions(_pyort PRIVATE PYBIND11_NUMPY_DTYPE=1)
 if(EXISTS "${ONNXRUNTIME_LIB_DIR}/${ONNXRUNTIME_LIB_NAME}.lib")
   target_link_libraries(_pyort PRIVATE "${ONNXRUNTIME_LIB_DIR}/${ONNXRUNTIME_LIB_NAME}.lib")
 else()
