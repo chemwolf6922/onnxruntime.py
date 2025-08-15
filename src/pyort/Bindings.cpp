@@ -20,23 +20,11 @@ PYBIND11_MODULE(_pyort, m) {
     m.attr("ORT_API_VERSION") = ORT_API_VERSION;
 
     // Example function that works with numpy arrays
-    m.def("process_array", [](pybind11::array_t<float> input) {
-        pybind11::buffer_info buf = input.request();
-        auto* ptr = static_cast<float*>(buf.ptr);
-        
-        // Create output array with same shape
-        auto output = pybind11::array_t<float>(buf.size);
-        pybind11::buffer_info output_buf = output.request();
-        auto* output_ptr = static_cast<float*>(output_buf.ptr);
-        
-        // Simple processing: multiply by 2
-        for (pybind11::ssize_t i = 0; i < buf.size; ++i) {
-            output_ptr[i] = ptr[i] * 2.0f;
-        }
-        
-        output.resize(buf.shape);
+    m.def("process_array", [](pybind11::array input) -> pybind11::array {
+        Pyort::Value value(input);
+        auto output = static_cast<pybind11::array>(value);
         return output;
-    }, 
+    },
     pybind11::arg("input"),
     "Example function that processes a numpy array");
 
