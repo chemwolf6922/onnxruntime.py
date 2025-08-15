@@ -14,115 +14,112 @@ namespace Pyort
     const OrtApi* GetApi();
     OrtAllocator* GetAllocator();
 
-    class Status
+    template <typename T, typename Derived>
+    class OrtTypeWrapper
     {
     public:
-        Status(OrtStatus* status);
-        ~Status();
-        Status(const Status&) = delete;
-        Status& operator=(const Status&) = delete;
-        Status(Status&& other) noexcept;
-        Status& operator=(Status&& other) noexcept;
+        OrtTypeWrapper(T* ptr)
+            : _ptr(ptr)
+        {
+        }
+        ~OrtTypeWrapper()
+        {
+            if (_ptr)
+            {
+                Derived::ReleaseOrtType(_ptr);
+                _ptr = nullptr;
+            }
+        }
+        OrtTypeWrapper(const OrtTypeWrapper&) = delete;
+        OrtTypeWrapper& operator=(const OrtTypeWrapper&) = delete;
+        OrtTypeWrapper(OrtTypeWrapper&& other) noexcept
+            : _ptr(other._ptr)
+        {
+            other._ptr = nullptr;
+        }
+        OrtTypeWrapper& operator=(OrtTypeWrapper&& other) noexcept
+        {
+            if (this != &other)
+            {
+                if (_ptr)
+                {
+                    Derived::ReleaseOrtType(_ptr);
+                }
+                _ptr = other._ptr;
+                other._ptr = nullptr;
+            }
+            return *this;
+        }
+        operator T*() const
+        {
+            return _ptr;
+        }
+    protected:
+        T* _ptr{ nullptr };
+    };
 
+    class Status : public OrtTypeWrapper<OrtStatus, Status>
+    {
+    public:
+        static void ReleaseOrtType(OrtStatus* ptr);
+        using OrtTypeWrapper::OrtTypeWrapper;
         OrtErrorCode GetErrorCode() const;
         std::string GetErrorMessage() const;
         void Check() const;
-        operator OrtStatus*() const;
-    private:
-        OrtStatus* _status{ nullptr };
     };
 
-    class Env
+    class Env : public OrtTypeWrapper<OrtEnv, Env>
     {
     public:
         static std::shared_ptr<Env> GetSingleton();
-        ~Env();
-        Env(const Env&) = delete;
-        Env& operator=(const Env&) = delete;
-        Env(Env&&) = delete;
-        Env& operator=(Env&&) = delete;
-
-        operator OrtEnv*() const;
+        static void ReleaseOrtType(OrtEnv* ptr);
     private:
         static std::shared_ptr<Env> _instance;
-        OrtEnv* _env{ nullptr };
         Env();
     };
 
-    class SessionOptions
+    class SessionOptions : public OrtTypeWrapper<OrtSessionOptions, SessionOptions>
     {
     public:
+        static void ReleaseOrtType(OrtSessionOptions* ptr);
         SessionOptions();
-        ~SessionOptions();
-        SessionOptions(const SessionOptions&) = delete;
-        SessionOptions& operator=(const SessionOptions&) = delete;
-        SessionOptions(SessionOptions&& other) noexcept;
-        SessionOptions& operator=(SessionOptions&& other) noexcept;
-
-        operator OrtSessionOptions*() const;
-    private:
-        OrtSessionOptions* _options{ nullptr };
+        using OrtTypeWrapper::OrtTypeWrapper;
     };
 
-    class Session
+    class Session : public OrtTypeWrapper<OrtSession, Session>
     {
     public:
+        static void ReleaseOrtType(OrtSession* ptr);
         Session(const std::string& modelPath, const SessionOptions& options);
-        ~Session();
-        Session(const Session&) = delete;
-        Session& operator=(const Session&) = delete;
-        Session(Session&& other) noexcept;
-        Session& operator=(Session&& other) noexcept;
 
-        operator OrtSession*() const;
         std::unordered_map<std::string, pybind11::array> Run(
             const std::unordered_map<std::string, pybind11::array>& inputs);
-    private:
-        OrtSession* _session{ nullptr };
     };
 
-    class Value
+    class Value : public OrtTypeWrapper<OrtValue, Value>
     {
     public:
-        explicit Value(const pybind11::array& source);
-        ~Value();
-        Value(const Value&) = delete;
-        Value& operator=(const Value&) = delete;
-        Value(Value&& other) noexcept;
-        Value& operator=(Value&& other) noexcept;
+        static void ReleaseOrtType(OrtValue* ptr);
+        Value(const pybind11::array& npArray);
+        Value(const std::vector<int64_t>& shape, ONNXTensorElementDataType type);
 
-        operator OrtValue*() const;
-        explicit operator pybind11::array() const;
+        operator pybind11::array() const;
         ONNXTensorElementDataType GetType() const;
         std::vector<int64_t> GetShape() const;
         size_t GetSize() const;
         void* GetData() const;
-        OrtValue* Detach();
     private:
-        static Value Create(std::vector<int64_t> shape, ONNXTensorElementDataType type);
-        static Value CreateRef(
-            std::vector<int64_t> shape, ONNXTensorElementDataType type,
-            void* data, size_t dataSize);
+        static ONNXTensorElementDataType NpTypeToOrtType(const pybind11::dtype& npType);
+        static pybind11::dtype OrtTypeToNpType(ONNXTensorElementDataType type);
 
-        std::optional<pybind11::array> _source { std::nullopt };
-        OrtValue* _value{ nullptr };
-
-        explicit Value(OrtValue* value);
+        /** Data is always stored in _npArray. _ptr is just a shell. */
+        std::optional<pybind11::array> _npArray;
     };
 
-    class MemoryInfo
+    class MemoryInfo : public OrtTypeWrapper<OrtMemoryInfo, MemoryInfo>
     {
     public:
-        /** No parameter allowed. DO NOT mess with this. */
+        static void ReleaseOrtType(OrtMemoryInfo* ptr);
         MemoryInfo();
-        ~MemoryInfo();
-        MemoryInfo(const MemoryInfo&) = delete;
-        MemoryInfo& operator=(const MemoryInfo&) = delete;
-        MemoryInfo(MemoryInfo&& other) noexcept;
-        MemoryInfo& operator=(MemoryInfo&& other) noexcept;
-
-        operator OrtMemoryInfo*() const;
-    private:
-        OrtMemoryInfo* _memoryInfo{ nullptr };
     };
 }
