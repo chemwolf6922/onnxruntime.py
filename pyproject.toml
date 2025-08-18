@@ -9,6 +9,7 @@ description = "Minimal pybind11 native Python package linking to ONNX Runtime"
 readme = "README.md"
 authors = [{ name = "Your Name" }]
 requires-python = ">=3.8"
+dependencies = ["numpy"]
 classifiers = [
   "Programming Language :: Python",
   "Programming Language :: Python :: 3",
@@ -19,13 +20,11 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/your/repo"
+Homepage = "https://github.com/chemwolf6922/onnxruntime.py"
 
 [tool.scikit-build]
 wheel.expand-macos-universal-tags = true
 build.verbose = true
 cmake.version = ">=3.20"
-# Ensure git submodules and ONNX Runtime are included in the source distribution
 sdist.include = ["extern/pybind11/**", "onnxruntime/**"]
-# Don't try to find pybind11 via pip/conda - use the submodule
 cmake.define.PYBIND11_FINDPYTHON = "ON"
