@@ -58,8 +58,72 @@ function Get-ReleaseInfo {
     }
 }
 
+function Get-AllReleases {
+    param(
+        [int]$MaxReleases = 50
+    )
+
+    $url = "https://api.github.com/repos/$repo/releases?per_page=$MaxReleases"
+    
+    try {
+        return Invoke-RestMethod -Uri $url -Headers (Get-GitHubHeaders) -ErrorAction Stop
+    }
+    catch {
+        throw "Failed to get releases list: $_"
+    }
+}
+
+function Find-LatestReleaseWithWindows {
+    param(
+        [string]$SpecificVersion
+    )
+
+    if ($SpecificVersion) {
+        # If a specific version is requested, use the original logic
+        return Get-ReleaseInfo -Version $SpecificVersion
+    }
+
+    Write-Host "Searching for the latest release with Windows package..."
+    
+    $releases = Get-AllReleases
+    $foundRelease = $null
+    $skippedReleases = @()
+
+    foreach ($release in $releases) {
+        $tag = $release.tag_name
+        $versionNumber = $tag.TrimStart('v','V')
+        $assetName = Get-AssetName -VersionNumber $versionNumber
+        
+        $asset = $release.assets | Where-Object { $_.name -eq $assetName } | Select-Object -First 1
+        
+        if ($null -ne $asset) {
+            $foundRelease = $release
+            break
+        } else {
+            $skippedReleases += $tag
+        }
+    }
+
+    # Print warnings for skipped releases
+    foreach ($skippedTag in $skippedReleases) {
+        Write-Warning "Release $skippedTag does not have Windows x64 package, skipping..."
+    }
+
+    if ($null -eq $foundRelease) {
+        throw "No recent releases found with Windows x64 package. Please check the repository manually."
+    }
+
+    if ($skippedReleases.Count -gt 0) {
+        Write-Host "Found release $($foundRelease.tag_name) with Windows package (skipped $($skippedReleases.Count) newer release$(if ($skippedReleases.Count -ne 1) {'s'}))."
+    } else {
+        Write-Host "Using latest release $($foundRelease.tag_name)."
+    }
+
+    return $foundRelease
+}
+
 # Resolve release and asset
-$release = Get-ReleaseInfo -Version $Version
+$release = Find-LatestReleaseWithWindows -SpecificVersion $Version
 $tag = $release.tag_name
 $versionNumber = $tag.TrimStart('v','V')
 $assetName = Get-AssetName -VersionNumber $versionNumber
@@ -69,8 +133,13 @@ $asset = $release.assets | Where-Object { $_.name -eq $assetName } | Select-Obje
 if ($null -ne $asset) {
     $downloadUrl = $asset.browser_download_url
 } else {
-    # Construct direct URL for the asset
+    # Construct direct URL for the asset (fallback for specific versions)
     $downloadUrl = "https://github.com/$repo/releases/download/$tag/$assetName"
+    
+    # For specific versions, we still try the direct URL, but warn about potential issues
+    if ($Version) {
+        Write-Warning "Asset not found in release metadata for version $Version. Attempting direct download - this may fail if the asset doesn't exist."
+    }
 }
 
 # Prepare paths
@@ -95,7 +164,11 @@ try {
         Invoke-WebRequest -Uri $downloadUrl -OutFile $zipPath -ErrorAction Stop
     }
     catch {
-        throw "Failed to download '$downloadUrl'. $_"
+        $errorMessage = "Failed to download '$downloadUrl'. $_"
+        if ($Version -and $null -eq $asset) {
+            $errorMessage += "`nNote: The specified version '$Version' may not have a Windows x64 package available."
+        }
+        throw $errorMessage
     }
 
     # Extract and flatten so files are directly under $OutDir
