@@ -478,103 +478,67 @@ void* Pyort::Value::GetData() const
 
 ONNXTensorElementDataType Pyort::Value::NpTypeToOrtType(const pybind11::dtype& npType)
 {
-    ONNXTensorElementDataType type;
     switch (npType.num()) {
         case pybind11::detail::npy_api::constants::NPY_BOOL_:
-            type = ONNX_TENSOR_ELEMENT_DATA_TYPE_BOOL;
-            break;
+            return ONNX_TENSOR_ELEMENT_DATA_TYPE_BOOL;
         case pybind11::detail::npy_api::constants::NPY_BYTE_:
-            type = ONNX_TENSOR_ELEMENT_DATA_TYPE_INT8;
-            break;
+            return ONNX_TENSOR_ELEMENT_DATA_TYPE_INT8;
         case pybind11::detail::npy_api::constants::NPY_UBYTE_:
-            type = ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT8;
-            break;
+            return ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT8;
         case pybind11::detail::npy_api::constants::NPY_SHORT_:
-            type = ONNX_TENSOR_ELEMENT_DATA_TYPE_INT16;
-            break;
+            return ONNX_TENSOR_ELEMENT_DATA_TYPE_INT16;
         case pybind11::detail::npy_api::constants::NPY_USHORT_:
-            type = ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT16;
-            break;
+            return ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT16;
         case pybind11::detail::npy_api::constants::NPY_INT_:
         case pybind11::detail::npy_api::constants::NPY_LONG_:
-            type = ONNX_TENSOR_ELEMENT_DATA_TYPE_INT32;
-            break;
+            return ONNX_TENSOR_ELEMENT_DATA_TYPE_INT32;
         case pybind11::detail::npy_api::constants::NPY_UINT_:
         case pybind11::detail::npy_api::constants::NPY_ULONG_:
-            type = ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT32;
-            break;
+            return ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT32;
         case pybind11::detail::npy_api::constants::NPY_LONGLONG_:
-            type = ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64;
-            break;
+            return ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64;
         case pybind11::detail::npy_api::constants::NPY_ULONGLONG_:
-            type = ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT64;
-            break;
+            return ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT64;
         case pybind11::detail::npy_api::constants::NPY_FLOAT_:
-            type = ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT;
-            break;
+            return ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT;
         case pybind11::detail::npy_api::constants::NPY_DOUBLE_:
-            type = ONNX_TENSOR_ELEMENT_DATA_TYPE_DOUBLE;
-            break;
-        case pybind11::detail::npy_api::constants::NPY_CFLOAT_:
-            type = ONNX_TENSOR_ELEMENT_DATA_TYPE_COMPLEX64;
-            break;
-        case pybind11::detail::npy_api::constants::NPY_CDOUBLE_:
-            type = ONNX_TENSOR_ELEMENT_DATA_TYPE_COMPLEX128;
-            break;
+            return ONNX_TENSOR_ELEMENT_DATA_TYPE_DOUBLE;
         case 23: /** float16. Not defined in pybind11's included numpy header. */
-            type = ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT16;
-            break;
-        default:
-            throw std::runtime_error("Unsupported NumPy data type: " + std::to_string(npType.num()));
+            return ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT16;
     }
-    return type;
+    throw std::runtime_error("Unsupported NumPy data type: " + std::to_string(npType.num()));
 }
 
 pybind11::dtype Pyort::Value::OrtTypeToNpType(ONNXTensorElementDataType ortType)
 {
-    pybind11::dtype npType;
     switch (ortType) {
         case ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT:
-            npType = pybind11::dtype::of<float>();
-            break;
+            return pybind11::dtype::of<float>();
         case ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT8:
-            npType = pybind11::dtype::of<uint8_t>();
-            break;
+            return pybind11::dtype::of<uint8_t>();
         case ONNX_TENSOR_ELEMENT_DATA_TYPE_INT8:
-            npType = pybind11::dtype::of<int8_t>();
-            break;
+            return pybind11::dtype::of<int8_t>();
         case ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT16:
-            npType = pybind11::dtype::of<uint16_t>();
-            break;
+            return pybind11::dtype::of<uint16_t>();
         case ONNX_TENSOR_ELEMENT_DATA_TYPE_INT16:
-            npType = pybind11::dtype::of<int16_t>();
-            break;
+            return pybind11::dtype::of<int16_t>();
         case ONNX_TENSOR_ELEMENT_DATA_TYPE_INT32:
-            npType = pybind11::dtype::of<int32_t>();
-            break;
+            return pybind11::dtype::of<int32_t>();
         case ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64:
-            npType = pybind11::dtype::of<int64_t>();
-            break;
+            return pybind11::dtype::of<int64_t>();
         case ONNX_TENSOR_ELEMENT_DATA_TYPE_BOOL:
-            npType = pybind11::dtype::of<bool>();
-            break;
+            return pybind11::dtype::of<bool>();
         case ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT16:
             /** 23: numpy float 16 */
-            npType = pybind11::dtype(23);
-            break;
+            return pybind11::dtype(23);
         case ONNX_TENSOR_ELEMENT_DATA_TYPE_DOUBLE:
-            npType = pybind11::dtype::of<double>();
-            break;
+            return pybind11::dtype::of<double>();
         case ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT32:
-            npType = pybind11::dtype::of<uint32_t>();
-            break;
+            return pybind11::dtype::of<uint32_t>();
         case ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT64:
-            npType = pybind11::dtype::of<uint64_t>();
-            break;
-        default:
-            throw std::runtime_error("Unsupported ONNX tensor element data type: " + std::to_string(ortType));
+            return pybind11::dtype::of<uint64_t>();
     }
-    return npType;
+    throw std::runtime_error("Unsupported ONNX tensor element data type: " + std::to_string(ortType));
 }
 
 /** MemoryInfo */
