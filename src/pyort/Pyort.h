@@ -86,34 +86,55 @@ namespace Pyort
         using OrtTypeWrapper::OrtTypeWrapper;
     };
 
+    class TypeInfo : public OrtTypeWrapper<OrtTypeInfo, TypeInfo>
+    {
+    public:
+        static void ReleaseOrtType(OrtTypeInfo* ptr);
+        using OrtTypeWrapper::OrtTypeWrapper;
+    };
+
+    class TensorTypeAndShapeInfo : public OrtTypeWrapper<OrtTensorTypeAndShapeInfo, TensorTypeAndShapeInfo>
+    {
+    public:
+        static void ReleaseOrtType(OrtTensorTypeAndShapeInfo* ptr);
+        using OrtTypeWrapper::OrtTypeWrapper;
+    };
+
+    struct TensorInfo
+    {
+        std::vector<int64_t> shape;
+        pybind11::dtype dtype;
+    };
+
     class Session : public OrtTypeWrapper<OrtSession, Session>
     {
     public:
         static void ReleaseOrtType(OrtSession* ptr);
         Session(const std::string& modelPath, const SessionOptions& options);
 
+        std::unordered_map<std::string, TensorInfo> GetInputInfo() const;
+        std::unordered_map<std::string, TensorInfo> GetOutputInfo() const;
         std::unordered_map<std::string, pybind11::array> Run(
-            const std::unordered_map<std::string, pybind11::array>& inputs);
+            const std::unordered_map<std::string, pybind11::array>& inputs) const;
     };
 
     class Value : public OrtTypeWrapper<OrtValue, Value>
     {
     public:
+        static ONNXTensorElementDataType NpTypeToOrtType(const pybind11::dtype& npType);
+        static pybind11::dtype OrtTypeToNpType(ONNXTensorElementDataType type);
         static void ReleaseOrtType(OrtValue* ptr);
+        using OrtTypeWrapper::OrtTypeWrapper;
         Value(const pybind11::array& npArray);
         Value(const std::vector<int64_t>& shape, ONNXTensorElementDataType type);
 
-        operator pybind11::array() const;
+        operator pybind11::array();
         ONNXTensorElementDataType GetType() const;
         std::vector<int64_t> GetShape() const;
         size_t GetSize() const;
         void* GetData() const;
     private:
-        static ONNXTensorElementDataType NpTypeToOrtType(const pybind11::dtype& npType);
-        static pybind11::dtype OrtTypeToNpType(ONNXTensorElementDataType type);
-
-        /** Data is always stored in _npArray. _ptr is just a shell. */
-        std::optional<pybind11::array> _npArray;
+        std::optional<pybind11::array> _npArray{ std::nullopt };
     };
 
     class MemoryInfo : public OrtTypeWrapper<OrtMemoryInfo, MemoryInfo>

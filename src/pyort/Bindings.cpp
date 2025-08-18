@@ -117,10 +117,16 @@ PYBIND11_MODULE(_pyort, m) {
     pybind11::class_<Pyort::SessionOptions>(m, "SessionOptions")
         .def(pybind11::init<>());
 
+    pybind11::class_<Pyort::TensorInfo>(m, "TensorInfo")
+        .def_readonly("shape", &Pyort::TensorInfo::shape)
+        .def_readonly("dtype", &Pyort::TensorInfo::dtype);
+
     pybind11::class_<Pyort::Session, std::shared_ptr<Pyort::Session>>(m, "Session")
         .def(pybind11::init<const std::string&, const Pyort::SessionOptions&>(),
              pybind11::arg("model_path"),
              pybind11::arg("options"))
+        .def("get_input_info", &Pyort::Session::GetInputInfo)
+        .def("get_output_info", &Pyort::Session::GetOutputInfo)
         .def("run",
              &Pyort::Session::Run,
              pybind11::arg("inputs"));
