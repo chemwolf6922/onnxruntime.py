@@ -99,6 +99,8 @@ namespace Pyort
     public:
         static std::shared_ptr<Env> GetSingleton();
         static void ReleaseOrtType(OrtEnv* ptr);
+        void RegisterExecutionProviderLibrary(const std::string& name, const std::string& path);
+        void UnregisterExecutionProviderLibrary(const std::string& name);
         std::vector<EpDevice> GetEpDevices() const;
     private:
         static std::shared_ptr<Env> _instance;

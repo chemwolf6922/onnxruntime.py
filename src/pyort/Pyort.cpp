@@ -174,6 +174,18 @@ void Pyort::Env::ReleaseOrtType(OrtEnv* ptr)
     GetApi()->ReleaseEnv(ptr);
 }
 
+void Pyort::Env::RegisterExecutionProviderLibrary(const std::string& name, const std::string& path)
+{
+    Pyort::Status status = GetApi()->RegisterExecutionProviderLibrary(_ptr, name.c_str(), StringToOrtString(path).c_str());
+    status.Check();
+}
+
+void Pyort::Env::UnregisterExecutionProviderLibrary(const std::string& name)
+{
+    Pyort::Status status = GetApi()->UnregisterExecutionProviderLibrary(_ptr, name.c_str());
+    status.Check();
+}
+
 std::vector<Pyort::EpDevice> Pyort::Env::GetEpDevices() const
 {
     /** DO NOT free this. This is owned by onnxruntime. */

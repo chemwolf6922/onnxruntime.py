@@ -48,16 +48,11 @@ set_target_properties(_pyort PROPERTIES
   CXX_STANDARD 20
 )
 
-# On Windows, ensure the DLLs next to the extension at runtime (copy them)
-add_custom_command(TARGET _pyort POST_BUILD
-  COMMAND ${CMAKE_COMMAND} -E copy_if_different
-          "${ONNXRUNTIME_LIB_DIR}/${ONNXRUNTIME_LIB_NAME}.dll"
-          $<TARGET_FILE_DIR:_pyort>
-)
-
 # Install the extension module
 install(TARGETS _pyort DESTINATION pyort)
 
 # Install the ONNX Runtime DLL alongside the extension
-install(FILES "${ONNXRUNTIME_LIB_DIR}/${ONNXRUNTIME_LIB_NAME}.dll" 
+install(FILES 
+        "${ONNXRUNTIME_LIB_DIR}/${ONNXRUNTIME_LIB_NAME}.dll"
+        "${ONNXRUNTIME_ROOT}/lib/onnxruntime_providers_shared.dll" 
         DESTINATION pyort)

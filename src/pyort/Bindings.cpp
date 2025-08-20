@@ -37,10 +37,17 @@ PYBIND11_MODULE(_pyort, m) {
         .def_readonly("ep_options", &Pyort::EpDevice::epOptions)
         .def_readonly("device", &Pyort::EpDevice::device);
 
+    m.def("register_execution_provider_library", [](const std::string& name, const std::string& path) -> void {
+        Pyort::Env::GetSingleton()->RegisterExecutionProviderLibrary(name, path);
+    });
+
+    m.def("unregister_execution_provider_library", [](const std::string& name) -> void {
+        Pyort::Env::GetSingleton()->UnregisterExecutionProviderLibrary(name);
+    });
+
     m.def("get_ep_devices", []() -> std::vector<Pyort::EpDevice> {
         return Pyort::Env::GetSingleton()->GetEpDevices();
-    },
-    "Get all available execution provider devices");
+    });
 
     pybind11::class_<Pyort::SessionOptions>(m, "SessionOptions")
         .def(pybind11::init<>());
