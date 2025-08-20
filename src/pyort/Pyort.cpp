@@ -54,6 +54,67 @@ OrtAllocator* Pyort::GetAllocator()
     return allocator;
 }
 
+std::unordered_map<std::string, std::string> Pyort::KeyValuePairsToMap(const OrtKeyValuePairs* pairs)
+{
+    std::unordered_map<std::string, std::string> map{};
+    if (pairs == nullptr)
+    {
+        return map;
+    }
+    const char* const* keys = nullptr;
+    const char* const* values = nullptr;
+    size_t count = 0;
+    GetApi()->GetKeyValuePairs(pairs, &keys, &values, &count);
+    for (size_t i = 0; i < count; ++i)
+    {
+        if (keys[i] && values[i])
+        {
+            map[keys[i]] = values[i];
+        }
+    }
+    return map;
+}
+
+/** HardwareDevice */
+
+Pyort::HardwareDevice::HardwareDevice(const OrtHardwareDevice* device)
+{
+    if (device == nullptr)
+    {
+        throw std::runtime_error("HardwareDevice cannot be null");
+    }
+    type = GetApi()->HardwareDevice_Type(device);
+    vendorId = GetApi()->HardwareDevice_VendorId(device);
+    auto vendorRaw = GetApi()->HardwareDevice_Vendor(device);
+    vendor = vendorRaw ? vendorRaw : "";
+    deviceId = GetApi()->HardwareDevice_DeviceId(device);
+    auto metadataRaw = GetApi()->HardwareDevice_Metadata(device);
+    metadata = KeyValuePairsToMap(metadataRaw);
+}
+
+/** EpDevice */
+
+Pyort::EpDevice::EpDevice(const OrtEpDevice* epDevice)
+{
+    if (epDevice == nullptr)
+    {
+        throw std::runtime_error("EpDevice cannot be null");
+    }
+    _ptr = epDevice;
+    epName = GetApi()->EpDevice_EpName(epDevice);
+    epVendor = GetApi()->EpDevice_EpVendor(epDevice);
+    auto metadataRaw = GetApi()->EpDevice_EpMetadata(epDevice);
+    epMetadata = KeyValuePairsToMap(metadataRaw);
+    auto optionsRaw = GetApi()->EpDevice_EpOptions(epDevice);
+    epOptions = KeyValuePairsToMap(optionsRaw);
+    device = GetApi()->EpDevice_Device(epDevice);
+}
+
+Pyort::EpDevice::operator const OrtEpDevice*() const
+{
+    return _ptr;
+}
+
 /** Status */
 
 OrtErrorCode Pyort::Status::GetErrorCode() const
@@ -111,6 +172,22 @@ Pyort::Env::Env()
 void Pyort::Env::ReleaseOrtType(OrtEnv* ptr)
 {
     GetApi()->ReleaseEnv(ptr);
+}
+
+std::vector<Pyort::EpDevice> Pyort::Env::GetEpDevices() const
+{
+    /** DO NOT free this. This is owned by onnxruntime. */
+    const OrtEpDevice* const* devicesRaw = nullptr;
+    size_t deviceCount = 0;
+    Status status = GetApi()->GetEpDevices(_ptr, &devicesRaw, &deviceCount);
+    status.Check();
+    std::vector<Pyort::EpDevice> devices;
+    devices.reserve(deviceCount);
+    for (size_t i = 0; i < deviceCount; ++i)
+    {
+        devices.emplace_back(devicesRaw[i]);
+    }
+    return devices;
 }
 
 /** SessionOptions */

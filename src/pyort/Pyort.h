@@ -13,6 +13,7 @@ namespace Pyort
 {
     const OrtApi* GetApi();
     OrtAllocator* GetAllocator();
+    std::unordered_map<std::string, std::string> KeyValuePairsToMap(const OrtKeyValuePairs* pairs);
 
     template <typename T, typename Derived>
     class OrtTypeWrapper
@@ -68,11 +69,37 @@ namespace Pyort
         void Check() const;
     };
 
+    struct HardwareDevice
+    {
+        OrtHardwareDeviceType type;
+        uint32_t vendorId;
+        std::string vendor;
+        uint32_t deviceId;
+        std::unordered_map<std::string, std::string> metadata;
+        HardwareDevice(const OrtHardwareDevice* device);
+        HardwareDevice() = default;
+    };
+
+    struct EpDevice
+    {
+        std::string epName;
+        std::string epVendor;
+        std::unordered_map<std::string, std::string> epMetadata;
+        std::unordered_map<std::string, std::string> epOptions;
+        Pyort::HardwareDevice device;
+        EpDevice(const OrtEpDevice* epDevice);
+        EpDevice() = default;
+        operator const OrtEpDevice*() const;
+    private:
+        const OrtEpDevice* _ptr{ nullptr };
+    };
+
     class Env : public OrtTypeWrapper<OrtEnv, Env>
     {
     public:
         static std::shared_ptr<Env> GetSingleton();
         static void ReleaseOrtType(OrtEnv* ptr);
+        std::vector<EpDevice> GetEpDevices() const;
     private:
         static std::shared_ptr<Env> _instance;
         Env();
