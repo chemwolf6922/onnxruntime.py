@@ -51,8 +51,3 @@ set_target_properties(_pyort PROPERTIES
 # Install the extension module
 install(TARGETS _pyort DESTINATION pyort)
 
-# Install the ONNX Runtime DLL alongside the extension
-install(FILES 
-        "${ONNXRUNTIME_LIB_DIR}/${ONNXRUNTIME_LIB_NAME}.dll"
-        "${ONNXRUNTIME_ROOT}/lib/onnxruntime_providers_shared.dll" 
-        DESTINATION pyort)
