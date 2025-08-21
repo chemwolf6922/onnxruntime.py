@@ -5,3 +5,5 @@
 /build
 /build-wheel
 /nuget-packages
+/__pycache__
+
