@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    # Version to download, e.g. "1.18.1" or "v1.18.1". If omitted, downloads the latest release.
+    # Version hint to download, e.g. "1.18" or "1.22". Downloads the latest release matching the major.minor version. If omitted, downloads the latest release.
     [string]$Version,
 
     # Output directory where the package will be extracted
@@ -9,6 +9,28 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+
+# If Version is not provided, check if current git HEAD is a tag and use its major.minor version
+if (-not $Version) {
+    try {
+        Push-Location $PSScriptRoot
+        $gitTag = git describe --exact-match --tags HEAD 2>$null
+        if ($gitTag -and $LASTEXITCODE -eq 0) {
+            # Extract major.minor version from tag (format: major.minor[.suffix])
+            $cleanTag = $gitTag.TrimStart('v','V')
+            if ($cleanTag -match '^(\d+\.\d+)') {
+                $Version = $matches[1]
+                Write-Host "Using version hint '$Version' from current git tag '$gitTag'"
+            }
+        }
+    }
+    catch {
+        # Ignore any git errors and continue without version hint
+    }
+    finally {
+        Pop-Location
+    }
+}
 
 # Ensure TLS1.2 for GitHub
 try {
@@ -33,32 +55,6 @@ function Get-AssetName {
     return "onnxruntime-win-$Architecture-$VersionNumber.zip"
 }
 
-function Get-ReleaseInfo {
-    param([string]$Version)
-
-    $url = if ($Version) {
-        $tag = if ($Version -match '^[vV]') { $Version } else { "v$Version" }
-        "https://api.github.com/repos/$repo/releases/tags/$tag"
-    } else {
-        "https://api.github.com/repos/$repo/releases/latest"
-    }
-
-    try {
-        return Invoke-RestMethod -Uri $url -Headers (Get-GitHubHeaders) -ErrorAction Stop
-    }
-    catch {
-        if ($Version) {
-            # Fall back with minimal info; we can still construct the asset URL directly
-            $tag = if ($Version -match '^[vV]') { $Version } else { "v$Version" }
-            return [pscustomobject]@{
-                tag_name = $tag
-                assets   = @()
-            }
-        }
-        throw
-    }
-}
-
 function Get-AllReleases {
     param(
         [int]$MaxReleases = 50
@@ -76,13 +72,8 @@ function Get-AllReleases {
 
 function Find-LatestReleaseWithWindows {
     param(
-        [string]$SpecificVersion
+        [string]$VersionHint
     )
-
-    if ($SpecificVersion) {
-        # If a specific version is requested, use the original logic
-        return Get-ReleaseInfo -Version $SpecificVersion
-    }
 
     Write-Host "Searching for the latest release with Windows packages (x64 and arm64)..."
     
@@ -90,9 +81,30 @@ function Find-LatestReleaseWithWindows {
     $foundRelease = $null
     $skippedReleases = @()
 
+    # If version hint is provided, validate and normalize it
+    $majorMinorPattern = $null
+    if ($VersionHint) {
+        # Remove 'v' prefix if present and validate format
+        $cleanVersion = $VersionHint.TrimStart('v','V')
+        if ($cleanVersion -match '^(\d+\.\d+)(?:\.\d+)*$') {
+            $majorMinorPattern = $matches[1]
+            Write-Host "Looking for the latest release matching version pattern: $majorMinorPattern.*"
+        } else {
+            throw "Version hint '$VersionHint' is not valid. Please provide a version in format 'major.minor' (e.g., '1.22')."
+        }
+    }
+
     foreach ($release in $releases) {
         $tag = $release.tag_name
         $versionNumber = $tag.TrimStart('v','V')
+        
+        # If version hint is specified, check if this release matches
+        if ($majorMinorPattern) {
+            if (-not $versionNumber.StartsWith($majorMinorPattern)) {
+                continue  # Skip releases that don't match the version pattern
+            }
+        }
+        
         $x64AssetName = Get-AssetName -VersionNumber $versionNumber -Architecture "x64"
         $arm64AssetName = Get-AssetName -VersionNumber $versionNumber -Architecture "arm64"
         
@@ -113,20 +125,32 @@ function Find-LatestReleaseWithWindows {
     }
 
     if ($null -eq $foundRelease) {
-        throw "No recent releases found with both Windows x64 and arm64 packages. Please check the repository manually."
+        if ($majorMinorPattern) {
+            throw "No releases found matching version pattern '$majorMinorPattern.*' with both Windows x64 and arm64 packages. Please check the repository manually or try a different version pattern."
+        } else {
+            throw "No recent releases found with both Windows x64 and arm64 packages. Please check the repository manually."
+        }
     }
 
     if ($skippedReleases.Count -gt 0) {
-        Write-Host "Found release $($foundRelease.tag_name) with both Windows packages (skipped $($skippedReleases.Count) newer release$(if ($skippedReleases.Count -ne 1) {'s'}))."
+        if ($majorMinorPattern) {
+            Write-Host "Found release $($foundRelease.tag_name) matching pattern '$majorMinorPattern.*' with both Windows packages (skipped $($skippedReleases.Count) release$(if ($skippedReleases.Count -ne 1) {'s'}))."
+        } else {
+            Write-Host "Found release $($foundRelease.tag_name) with both Windows packages (skipped $($skippedReleases.Count) newer release$(if ($skippedReleases.Count -ne 1) {'s'}))."
+        }
     } else {
-        Write-Host "Using latest release $($foundRelease.tag_name)."
+        if ($majorMinorPattern) {
+            Write-Host "Using latest release $($foundRelease.tag_name) matching pattern '$majorMinorPattern.*'."
+        } else {
+            Write-Host "Using latest release $($foundRelease.tag_name)."
+        }
     }
 
     return $foundRelease
 }
 
 # Resolve release and asset
-$release = Find-LatestReleaseWithWindows -SpecificVersion $Version
+$release = Find-LatestReleaseWithWindows -VersionHint $Version
 $tag = $release.tag_name
 $versionNumber = $tag.TrimStart('v','V')
 $x64AssetName = Get-AssetName -VersionNumber $versionNumber -Architecture "x64"
@@ -141,25 +165,15 @@ $downloadUrls = @{}
 if ($null -ne $x64Asset) {
     $downloadUrls["x64"] = $x64Asset.browser_download_url
 } else {
-    # Construct direct URL for the asset (fallback for specific versions)
-    $downloadUrls["x64"] = "https://github.com/$repo/releases/download/$tag/$x64AssetName"
-    
-    # For specific versions, we still try the direct URL, but warn about potential issues
-    if ($Version) {
-        Write-Warning "x64 asset not found in release metadata for version $Version. Attempting direct download - this may fail if the asset doesn't exist."
-    }
+    # This should not happen since Find-LatestReleaseWithWindows ensures both assets exist
+    throw "x64 asset '$x64AssetName' not found in release $tag. This is unexpected - please report this issue."
 }
 
 if ($null -ne $arm64Asset) {
     $downloadUrls["arm64"] = $arm64Asset.browser_download_url
 } else {
-    # Construct direct URL for the asset (fallback for specific versions)
-    $downloadUrls["arm64"] = "https://github.com/$repo/releases/download/$tag/$arm64AssetName"
-    
-    # For specific versions, we still try the direct URL, but warn about potential issues
-    if ($Version) {
-        Write-Warning "arm64 asset not found in release metadata for version $Version. Attempting direct download - this may fail if the asset doesn't exist."
-    }
+    # This should not happen since Find-LatestReleaseWithWindows ensures both assets exist
+    throw "arm64 asset '$arm64AssetName' not found in release $tag. This is unexpected - please report this issue."
 }
 
 # Prepare paths - x64 goes to the original location, arm64 to a new location
@@ -205,8 +219,8 @@ function Download-And-Extract {
     }
     catch {
         $errorMessage = "Failed to download '$DownloadUrl'. $_"
-        if ($Version -and (($Architecture -eq "x64" -and $null -eq $x64Asset) -or ($Architecture -eq "arm64" -and $null -eq $arm64Asset))) {
-            $errorMessage += "`nNote: The specified version '$Version' may not have a Windows $Architecture package available."
+        if ($Version) {
+            $errorMessage += "`nNote: The specified version hint '$Version' resolved to a release that may have issues with the Windows $Architecture package."
         }
         throw $errorMessage
     }
