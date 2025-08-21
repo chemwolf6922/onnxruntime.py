@@ -1,53 +1,45 @@
 cmake_minimum_required(VERSION 3.20)
-project(onnxruntime-py LANGUAGES CXX)
+project(onnxruntime.py LANGUAGES CXX)
 
-# Options
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-# Force usage of vendored pybind11 submodule under extern/pybind11
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+  set(default_build_type "Release")
+  message(STATUS "Setting build type to '${default_build_type}' as none was specified.")
+  set(CMAKE_BUILD_TYPE "${default_build_type}" CACHE STRING "Choose the type of build." FORCE)
+  set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release" "RelWithDebInfo" "MinSizeRel")
+endif()
+
+execute_process(
+  COMMAND python "${CMAKE_SOURCE_DIR}/get-version.py"
+  OUTPUT_VARIABLE PYORT_VERSION
+  OUTPUT_STRIP_TRAILING_WHITESPACE
+)
+
 set(PYBIND11_SUBMODULE_DIR "${CMAKE_SOURCE_DIR}/extern/pybind11")
-if(EXISTS "${PYBIND11_SUBMODULE_DIR}/CMakeLists.txt")
-  message(STATUS "Using vendored pybind11 from ${PYBIND11_SUBMODULE_DIR}")
-  add_subdirectory("${PYBIND11_SUBMODULE_DIR}" EXCLUDE_FROM_ALL)
-else()
-  message(FATAL_ERROR "pybind11 submodule not found at ${PYBIND11_SUBMODULE_DIR}. Initialize with: git submodule update --init --recursive")
-endif()
+add_subdirectory("${PYBIND11_SUBMODULE_DIR}" EXCLUDE_FROM_ALL)
 
-# ONNX Runtime root (extracted by the PowerShell script)
 set(ONNXRUNTIME_ROOT "${CMAKE_SOURCE_DIR}/onnxruntime" CACHE PATH "Path to ONNX Runtime install root")
-
-# Validate expected layout
-if(NOT EXISTS "${ONNXRUNTIME_ROOT}/include/onnxruntime_c_api.h")
-  message(FATAL_ERROR "Couldn't find ONNX Runtime headers at ${ONNXRUNTIME_ROOT}/include. Run GetOnnxruntime.ps1 first.")
-endif()
-
-# Library dir and names on Windows CPU x64
 set(ONNXRUNTIME_LIB_DIR "${ONNXRUNTIME_ROOT}/lib")
 set(ONNXRUNTIME_LIB_NAME "onnxruntime")
 
-# Create extension
 pybind11_add_module(_pyort
   src/cpp/Bindings.cpp
   src/cpp/Pyort.cpp)
 
-# Include and link
 target_include_directories(_pyort PRIVATE "${ONNXRUNTIME_ROOT}/include")
-
-# Add numpy support - this is essential for numpy array handling
 target_compile_definitions(_pyort PRIVATE PYBIND11_NUMPY_DTYPE=1)
-if(EXISTS "${ONNXRUNTIME_LIB_DIR}/${ONNXRUNTIME_LIB_NAME}.lib")
-  target_link_libraries(_pyort PRIVATE "${ONNXRUNTIME_LIB_DIR}/${ONNXRUNTIME_LIB_NAME}.lib")
-else()
-  message(FATAL_ERROR "Couldn't find ${ONNXRUNTIME_LIB_DIR}/${ONNXRUNTIME_LIB_NAME}.lib. Make sure CPU x64 package is downloaded.")
-endif()
-
-# Define version macro
+target_compile_definitions(_pyort PRIVATE PYORT_VERSION="${PYORT_VERSION}")
+target_link_libraries(_pyort PRIVATE "${ONNXRUNTIME_LIB_DIR}/${ONNXRUNTIME_LIB_NAME}.lib")
 set_target_properties(_pyort PROPERTIES
   CXX_STANDARD 20
 )
 
-# Install the extension module
-install(TARGETS _pyort DESTINATION pyort)
+add_custom_command(TARGET _pyort POST_BUILD
+  COMMAND python "${CMAKE_SOURCE_DIR}/pack_wheel.py" -b "$<CONFIG>"
+  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+  COMMENT "Packing wheel after build"
+)
 

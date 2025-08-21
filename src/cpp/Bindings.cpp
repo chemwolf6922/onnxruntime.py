@@ -10,7 +10,7 @@
 #include "Pyort.h"
 
 #ifndef PYORT_VERSION
-#define PYORT_VERSION "0.1.0"
+#define PYORT_VERSION "0.0"
 #endif
 
 PYBIND11_MODULE(_pyort, m) {

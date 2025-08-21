@@ -1,0 +1,16 @@
+Metadata-Version: 2.4
+Name: pyort_lib
+Version: PYORT_LIB_VERSION
+Summary: ONNX Runtime DLLs for the pyort package
+Author: Feng Wang
+License: MIT
+Project-URL: Homepage, https://github.com/chemwolf6922/onnxruntime.py
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: Implementation :: CPython
+Classifier: Operating System :: Microsoft :: Windows
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+
+# pyort-lib
+This is meant to be the with-lib dependency for the pyort package. DO NOT install this package directly.

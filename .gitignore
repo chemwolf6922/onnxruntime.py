@@ -1,3 +1,5 @@
 /onnxruntime
 /dist
 /.vscode
+/build
+/build-wheel
