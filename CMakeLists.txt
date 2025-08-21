@@ -20,7 +20,23 @@ execute_process(
 
 set(PYBIND11_SUBMODULE_DIR "${CMAKE_SOURCE_DIR}/extern/pybind11")
 
-set(ONNXRUNTIME_ROOT "${CMAKE_SOURCE_DIR}/onnxruntime" CACHE PATH "Path to ONNX Runtime install root")
+# Determine target architecture
+if(CMAKE_GENERATOR_PLATFORM)
+  set(TARGET_ARCH "${CMAKE_GENERATOR_PLATFORM}")
+elseif(CMAKE_HOST_SYSTEM_PROCESSOR)
+  set(TARGET_ARCH "${CMAKE_HOST_SYSTEM_PROCESSOR}")
+endif()
+
+message(STATUS "Building for architecture: ${TARGET_ARCH}")
+
+# Set ONNXRUNTIME_ROOT based on architecture
+if(TARGET_ARCH MATCHES "AMD64|x64")
+  set(ONNXRUNTIME_ROOT "${CMAKE_SOURCE_DIR}/onnxruntime")
+elseif(TARGET_ARCH MATCHES "ARM64")
+  set(ONNXRUNTIME_ROOT "${CMAKE_SOURCE_DIR}/onnxruntime-arm64")
+else()
+  message(FATAL_ERROR "Unsupported architecture: ${TARGET_ARCH}")
+endif()
 set(ONNXRUNTIME_LIB_DIR "${ONNXRUNTIME_ROOT}/lib")
 set(ONNXRUNTIME_LIB_NAME "onnxruntime")
 
@@ -31,7 +47,7 @@ add_library(_pyort MODULE
 
 if(NOT PYTHON_INCLUDE_DIR OR NOT PYTHON_LIBRARY)
   message(STATUS "Python include directory or library not set, using the system python.")
-  find_package(Python3 COMPONENTS Interpreter Development REQUIRED)
+  find_package(Python3 COMPONENTS Development REQUIRED)
   set(PYTHON_INCLUDE_DIR "${Python3_INCLUDE_DIRS}")
   set(PYTHON_LIBRARY "${Python3_LIBRARIES}")
 endif()
@@ -58,7 +74,7 @@ set_target_properties(_pyort PROPERTIES
 )
 
 add_custom_command(TARGET _pyort POST_BUILD
-  COMMAND python "${CMAKE_SOURCE_DIR}/pack_wheel.py" -b "$<CONFIG>" -p "${PYTHON_LIBRARY}"
+  COMMAND python "${CMAKE_SOURCE_DIR}/pack_wheel.py" -b "$<CONFIG>" -p "${PYTHON_LIBRARY}" -a "${TARGET_ARCH}"
   WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
   COMMENT "Packing wheel after build"
 )

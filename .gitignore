@@ -1,4 +1,5 @@
 /onnxruntime
+/onnxruntime-arm64
 /dist
 /.vscode
 /build
