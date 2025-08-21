@@ -17,13 +17,31 @@ parser.add_argument(
     choices=["Release", "Debug"],
     default="Release",
     help="Select the .pyd flavor to pack")
+parser.add_argument(
+    "--python-lib", "-p",
+    type=str,
+    default=None,
+    help="Path to the Python library the pyd linked against (optional)")
+parser.add_argument(
+    "--arch", "-a",
+    choices=["amd64", "arm64"],
+    default="amd64",
+    help="Select the architecture for the wheel (default: amd64)")
 args = parser.parse_args()
-
 
 PROJECT_DIR = Path(__file__).parent
 WHEEL_BUILD_DIR = PROJECT_DIR / "build-wheel"
 WHEEL_OUTPUT_DIR = PROJECT_DIR / "dist"
 WHEEL_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+# parse the python version from python library or use the current interpreter's version
+
+python_version = None
+if args.python_lib:
+    python_version = Path(args.python_lib).name.replace("python", "").replace(".lib", "")
+else:
+    import sys
+    python_version = sys.version.split()[0].replace(".", "")
 
 # Pack the pyort wheel
 
@@ -33,10 +51,8 @@ wheel_build_source_dir = WHEEL_BUILD_DIR / "pyort"
 wheel_build_source_dir.mkdir(parents=True, exist_ok=True)
 shutil.copytree(PROJECT_DIR / "src" / "pyort", wheel_build_source_dir, dirs_exist_ok=True)
 binary_dir = PROJECT_DIR / "build" / args.build_type
-pyort_pyd_path = Path(glob(str(binary_dir / "_pyort*.pyd"))[0])
-shutil.copy(pyort_pyd_path, wheel_build_source_dir)
-pyd_python_version = pyort_pyd_path.name.split(".")[1].split("-")[0]
-pyd_platform = pyort_pyd_path.name.split(".")[1].split("-")[1]
+pyort_pyd_path = Path(glob(str(binary_dir / "_pyort.pyd"))[0])
+shutil.copy(pyort_pyd_path, wheel_build_source_dir / f"_pyort.cp{python_version}-win_{args.arch}.pyd")
 wheel_build_dist_info_dir = WHEEL_BUILD_DIR / f"pyort-{get_version()}.dist-info"
 wheel_build_dist_info_dir.mkdir(parents=True, exist_ok=True)
 copy_file_with_replacements(
@@ -51,10 +67,10 @@ copy_file_with_replacements(
     PROJECT_DIR / "src" / "pyort.dist-info.in" / "WHEEL.in",
     wheel_build_dist_info_dir / "WHEEL",
     {
-        "PYORT_WHEEL_TAG": f"{pyd_python_version}-{pyd_python_version}-{pyd_platform}"
+        "PYORT_WHEEL_TAG": f"cp{python_version}-cp{python_version}-win_{args.arch}"
     }
 )
-pack(WHEEL_BUILD_DIR, WHEEL_OUTPUT_DIR, None)
+pack(str(WHEEL_BUILD_DIR), str(WHEEL_OUTPUT_DIR), None)
 
 # Pack the pyort-lib wheel
 
@@ -74,4 +90,4 @@ copy_file_with_replacements(
 )
 shutil.copy(PROJECT_DIR / "src" / "pyort_lib.dist-info.in" / "top_level.txt", wheel_build_dist_info_dir)
 shutil.copy(PROJECT_DIR / "src" / "pyort_lib.dist-info.in" / "WHEEL", wheel_build_dist_info_dir)
-pack(WHEEL_BUILD_DIR, WHEEL_OUTPUT_DIR, None)
+pack(str(WHEEL_BUILD_DIR), str(WHEEL_OUTPUT_DIR), None)
