@@ -29,8 +29,8 @@ set(ONNXRUNTIME_LIB_NAME "onnxruntime")
 
 # Create extension
 pybind11_add_module(_pyort
-  src/pyort/Bindings.cpp
-  src/pyort/Pyort.cpp)
+  src/cpp/Bindings.cpp
+  src/cpp/Pyort.cpp)
 
 # Include and link
 target_include_directories(_pyort PRIVATE "${ONNXRUNTIME_ROOT}/include")
