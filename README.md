@@ -9,13 +9,19 @@
 3. `pip install -r requirements.txt`
 4. `GetOnnxruntime.ps1`
 
-### Build wheels
+### Build for your system
 
 ```PowerShell
 mkdir build
 cd build
 cmake ..
 cmake --build .
+```
+
+### Build all wheels
+
+```PowerShell
+& build-all.ps1
 ```
 
 ## Example
