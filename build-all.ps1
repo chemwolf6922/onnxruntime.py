@@ -1,7 +1,7 @@
 rm ./dist/*
 & python -m build
-cd native
+cd lib-package
 rm ./dist/*
 & python -m build
 cd ..
-cp native/dist/*.whl dist/
+cp lib-package/dist/*.whl dist/

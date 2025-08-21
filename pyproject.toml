@@ -20,7 +20,7 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
-with-native = ["pyort-native"]
+with-lib = ["pyort-lib"]
 
 [project.urls]
 Homepage = "https://github.com/chemwolf6922/onnxruntime.py"

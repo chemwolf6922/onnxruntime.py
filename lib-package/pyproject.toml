@@ -3,11 +3,11 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "pyort-native"
+name = "pyort-lib"
 dynamic = ["version"]
-description = "Native ONNX Runtime DLLs for pyort package"
+description = "ONNX Runtime DLLs for pyort package"
 readme = "README.md"
-authors = [{ name = "Your Name" }]
+authors = [{ name = "Feng Wang" }]
 requires-python = ">=3.8"
 dependencies = []
 license = {text = "MIT"}
