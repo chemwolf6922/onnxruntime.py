@@ -263,6 +263,8 @@ try {
 finally {
     # Always clean up temporary working directory (zip and temp extract)
     if (Test-Path $tempRoot) {
+        Write-Host "Cleaning up temporary files in: $tempRoot"
         try { Remove-Item -Recurse -Force -LiteralPath $tempRoot -ErrorAction SilentlyContinue } catch { }
+        Write-Host "Temporary files cleaned up."
     }
 }

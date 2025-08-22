@@ -27,10 +27,14 @@ runs:
 
     - name: Download ONNX Runtime
       run: |
+        Write-Host "Downloading ONNX Runtime..."
         .\GetOnnxruntime.ps1
+        Write-Host "ONNX Runtime downloaded successfully."
       shell: powershell
 
     - name: Build all wheels
       run: |
+        Write-Host "Starting wheel build process..."
         .\build-all.ps1
+        Write-Host "Wheel build process completed."
       shell: powershell
