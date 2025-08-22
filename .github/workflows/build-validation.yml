@@ -1,0 +1,20 @@
+name: Build Validation
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  PYTHONIOENCODING: utf-8
+
+jobs:
+  build-validation:
+    name: Build Validation
+    runs-on: windows-latest
+
+    steps:
+    - name: Build wheels
+      uses: ./.github/actions/build-wheels

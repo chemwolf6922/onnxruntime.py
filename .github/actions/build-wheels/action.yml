@@ -1,0 +1,41 @@
+name: 'Build Wheels'
+description: 'Sets up environment and builds all wheels using build-all.ps1'
+runs:
+  using: 'composite'
+  steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Setup MSBuild
+      uses: microsoft/setup-msbuild@v2
+
+    - name: Setup VS Dev Environment
+      uses: ilammy/msvc-dev-cmd@v1
+
+    - name: Install NuGet
+      run: |
+        $nugetUrl = "https://dist.nuget.org/win-x86-commandline/latest/nuget.exe"
+        $nugetPath = "$env:TEMP\nuget.exe"
+        Invoke-WebRequest -Uri $nugetUrl -OutFile $nugetPath
+        # Add to PATH for current session
+        $env:PATH = "$env:TEMP;$env:PATH"
+        & "$nugetPath" help
+      shell: powershell
+
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+      shell: powershell
+
+    - name: Download ONNX Runtime
+      run: |
+        .\GetOnnxruntime.ps1
+      shell: powershell
+
+    - name: Build all wheels
+      run: |
+        .\build-all.ps1
+      shell: powershell
