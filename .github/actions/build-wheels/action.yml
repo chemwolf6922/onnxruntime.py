@@ -3,11 +3,6 @@ description: 'Sets up environment and builds all wheels using build-all.ps1'
 runs:
   using: 'composite'
   steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-      with:
-        submodules: recursive
-
     - name: Setup MSBuild
       uses: microsoft/setup-msbuild@v2
 

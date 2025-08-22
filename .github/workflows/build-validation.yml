@@ -16,5 +16,10 @@ jobs:
     runs-on: windows-latest
 
     steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+    
     - name: Build wheels
       uses: ./.github/actions/build-wheels
