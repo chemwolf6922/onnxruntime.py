@@ -224,7 +224,6 @@ void Pyort::SessionOptions::AppendExecutionProvider_V2(const std::vector<EpDevic
     {
         ep_device_ptrs.push_back(device);
     }
-
     std::vector<const char*> ep_option_keys;
     ep_option_keys.reserve(ep_options.size());
     std::vector<const char*> ep_option_values;
@@ -234,7 +233,6 @@ void Pyort::SessionOptions::AppendExecutionProvider_V2(const std::vector<EpDevic
         ep_option_keys.push_back(k.c_str());
         ep_option_values.push_back(v.c_str());
     }
-
     Pyort::Status status = GetApi()->SessionOptionsAppendExecutionProvider_V2(_ptr, *(Pyort::Env::GetSingleton()), ep_device_ptrs.data(), ep_device_ptrs.size(), ep_option_keys.data(), ep_option_values.data(), ep_option_keys.size());
     status.Check();
 }
