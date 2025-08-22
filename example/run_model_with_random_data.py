@@ -7,10 +7,20 @@ import time
 
 parser = argparse.ArgumentParser(description="Run an ONNX model with random data.")
 parser.add_argument("--model_path", "-m", type=Path, required=True, help="Path to the ONNX model file.")
+parser.add_argument("--ep", "-e", type=str, required=False, help="Execution provider to use, e.g. WebGpuExecutionProvider.")
 args = parser.parse_args()
 
 model_path = Path(args.model_path)
 session_options = ort.SessionOptions()
+
+if args.ep:
+    print('looking for EP', args.ep)
+    ep_devices = ort.get_ep_devices()
+    for ep_device in ep_devices:
+        if ep_device.ep_name == args.ep:
+            session_options.append_execution_provider_v2([ep_device], {})
+            break
+
 session = ort.Session(str(model_path), session_options)
 input_info = session.get_input_info()
 inputs = {}

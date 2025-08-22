@@ -113,6 +113,7 @@ namespace Pyort
         static void ReleaseOrtType(OrtSessionOptions* ptr);
         SessionOptions();
         using OrtTypeWrapper::OrtTypeWrapper;
+        void AppendExecutionProvider_V2(const std::vector<EpDevice>& ep_devices, const std::unordered_map<std::string, std::string>& ep_options);
     };
 
     class TypeInfo : public OrtTypeWrapper<OrtTypeInfo, TypeInfo>

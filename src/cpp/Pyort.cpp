@@ -216,6 +216,27 @@ void Pyort::SessionOptions::ReleaseOrtType(OrtSessionOptions* ptr)
     GetApi()->ReleaseSessionOptions(ptr);
 }
 
+void Pyort::SessionOptions::AppendExecutionProvider_V2(const std::vector<EpDevice>& ep_devices, const std::unordered_map<std::string, std::string>& ep_options)
+{
+    std::vector<const OrtEpDevice*> ep_device_ptrs;
+    ep_device_ptrs.reserve(ep_devices.size());
+    for (const auto& device : ep_devices)
+    {
+        ep_device_ptrs.push_back(device);
+    }
+    std::vector<const char*> ep_option_keys;
+    ep_option_keys.reserve(ep_options.size());
+    std::vector<const char*> ep_option_values;
+    ep_option_values.reserve(ep_options.size());
+    for (const auto& [k, v] : ep_options)
+    {
+        ep_option_keys.push_back(k.c_str());
+        ep_option_values.push_back(v.c_str());
+    }
+    Pyort::Status status = GetApi()->SessionOptionsAppendExecutionProvider_V2(_ptr, *(Pyort::Env::GetSingleton()), ep_device_ptrs.data(), ep_device_ptrs.size(), ep_option_keys.data(), ep_option_values.data(), ep_option_keys.size());
+    status.Check();
+}
+
 /** TypeInfo */
 
 void Pyort::TypeInfo::ReleaseOrtType(OrtTypeInfo* ptr)

@@ -81,7 +81,7 @@ pack(str(WHEEL_BUILD_DIR), str(WHEEL_OUTPUT_DIR), None)
 
 shutil.rmtree(WHEEL_BUILD_DIR, ignore_errors=True)
 WHEEL_BUILD_DIR.mkdir(parents=True, exist_ok=True)
-wheel_build_source_dir = WHEEL_BUILD_DIR / "pyort_lib"
+wheel_build_source_dir = WHEEL_BUILD_DIR / "pyort"
 wheel_build_source_dir.mkdir(parents=True, exist_ok=True)
 onnxruntime_lib_path = {
     'amd64': PROJECT_DIR / "onnxruntime" / "lib",
@@ -102,7 +102,7 @@ copy_file_with_replacements(
     PROJECT_DIR / "src" / "pyort_lib.dist-info.in" / "WHEEL.in",
     wheel_build_dist_info_dir / "WHEEL",
     {
-        "PYORT_WHEEL_TAG": f"cp3-none-win_{target_arch}"
+        "PYORT_WHEEL_TAG": f"cp{python_version}-cp{python_version}-win_{target_arch}"
     }
 )
 shutil.copy(PROJECT_DIR / "src" / "pyort_lib.dist-info.in" / "top_level.txt", wheel_build_dist_info_dir)
