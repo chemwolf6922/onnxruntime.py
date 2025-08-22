@@ -89,6 +89,10 @@ onnxruntime_lib_path = {
 }[target_arch]
 shutil.copy(onnxruntime_lib_path / "onnxruntime.dll", wheel_build_source_dir)
 shutil.copy(onnxruntime_lib_path / "onnxruntime_providers_shared.dll", wheel_build_source_dir)
+try:
+    shutil.copy(onnxruntime_lib_path / "DirectML.dll", wheel_build_source_dir)
+except FileNotFoundError:
+    pass
 wheel_build_dist_info_dir = WHEEL_BUILD_DIR / f"pyort_lib-{get_lib_version()}.dist-info"
 wheel_build_dist_info_dir.mkdir(parents=True, exist_ok=True)
 copy_file_with_replacements(
