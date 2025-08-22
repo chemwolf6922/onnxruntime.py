@@ -11,6 +11,8 @@
 
 namespace Pyort
 {
+    using ProviderOptions = std::unordered_map<std::string, std::string>;
+
     const OrtApi* GetApi();
     OrtAllocator* GetAllocator();
     std::unordered_map<std::string, std::string> KeyValuePairsToMap(const OrtKeyValuePairs* pairs);
@@ -113,6 +115,7 @@ namespace Pyort
         static void ReleaseOrtType(OrtSessionOptions* ptr);
         SessionOptions();
         using OrtTypeWrapper::OrtTypeWrapper;
+        void AddProviderForDevices(const std::vector<EpDevice>& ep_devices, const ProviderOptions& ep_options);
     };
 
     class TypeInfo : public OrtTypeWrapper<OrtTypeInfo, TypeInfo>
