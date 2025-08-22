@@ -18,7 +18,7 @@ if args.ep:
     ep_devices = ort.get_ep_devices()
     for ep_device in ep_devices:
         if ep_device.ep_name == args.ep:
-            session_options.add_provider_for_devices([ep_device], {})
+            session_options.append_execution_provider_v2([ep_device], {})
             break
 
 session = ort.Session(str(model_path), session_options)

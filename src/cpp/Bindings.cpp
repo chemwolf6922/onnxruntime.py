@@ -51,7 +51,7 @@ PYBIND11_MODULE(_pyort, m) {
 
     pybind11::class_<Pyort::SessionOptions>(m, "SessionOptions")
         .def(pybind11::init<>())
-        .def("add_provider_for_devices", &Pyort::SessionOptions::AddProviderForDevices, pybind11::arg("ep_devices"), pybind11::arg("options"));
+        .def("append_execution_provider_v2", &Pyort::SessionOptions::AppendExecutionProvider_V2, pybind11::arg("ep_devices"), pybind11::arg("options"));
 
     pybind11::class_<Pyort::TensorInfo>(m, "TensorInfo")
         .def_readonly("shape", &Pyort::TensorInfo::shape)

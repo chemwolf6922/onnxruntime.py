@@ -216,7 +216,7 @@ void Pyort::SessionOptions::ReleaseOrtType(OrtSessionOptions* ptr)
     GetApi()->ReleaseSessionOptions(ptr);
 }
 
-void Pyort::SessionOptions::AddProviderForDevices(const std::vector<EpDevice>& ep_devices, const ProviderOptions& ep_options)
+void Pyort::SessionOptions::AppendExecutionProvider_V2(const std::vector<EpDevice>& ep_devices, const std::unordered_map<std::string, std::string>& ep_options)
 {
     std::vector<const OrtEpDevice*> ep_device_ptrs;
     ep_device_ptrs.reserve(ep_devices.size());
