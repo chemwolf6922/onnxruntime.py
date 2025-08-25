@@ -258,6 +258,8 @@ try {
     Write-Host "Both packages downloaded successfully:"
     Write-Host "  x64 package: $x64OutDir"
     Write-Host "  arm64 package: $arm64OutDir"
+    # This might have been set by git when we test for tags.
+    $global:LASTEXITCODE = 0
 }
 finally {
     # Always clean up temporary working directory (zip and temp extract)
