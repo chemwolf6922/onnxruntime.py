@@ -20,7 +20,7 @@ function BuildWheels {
     $nugetPackageName = if ($Platform -eq 'x64') { 'python' } else { 'pythonarm64' }
     & nuget install $nugetPackageName -Version $PythonVersion -DependencyVersion Ignore -OutputDirectory $installPath
     if ($LASTEXITCODE -ne 0) {
-        Write-Error "Failed to install Python $PythonVersion for $Platform."
+        Write-Host "Failed to install Python $PythonVersion for $Platform."
         exit $LASTEXITCODE
     }
 
@@ -47,14 +47,14 @@ function BuildWheels {
         "-A $Platform"
 
     if ($LASTEXITCODE -ne 0) {
-        Write-Error "CMake configuration failed for Python $PythonVersion on $Platform."
+        Write-Host "CMake configuration failed for Python $PythonVersion on $Platform."
         exit $LASTEXITCODE
     }
 
     & cmake --build $buildDir --config Release
 
     if ($LASTEXITCODE -ne 0) {
-        Write-Error "Build failed for Python $PythonVersion on $Platform."
+        Write-Host "Build failed for Python $PythonVersion on $Platform."
         exit $LASTEXITCODE
     }
 }
