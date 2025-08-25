@@ -1,3 +1,22 @@
+function BuildForHost {
+    $buildDir = Join-Path -Path $PSScriptRoot -ChildPath 'build'
+    if (Test-Path -LiteralPath $buildDir) {
+        Remove-Item -LiteralPath $buildDir -Recurse -Force
+    }
+
+    & cmake -S $PSScriptRoot -B $buildDir 
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "CMake configuration failed for host."
+        exit $LASTEXITCODE
+    }
+
+    & cmake --build $buildDir --config Release
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Build failed for host."
+        exit $LASTEXITCODE
+    }
+}
+
 function BuildWheels {
     [CmdletBinding()]
     param(
@@ -77,6 +96,8 @@ if (Test-Path -LiteralPath $distPath) {
 }
 New-Item -ItemType Directory -Path $distPath -Force | Out-Null
 
+# Build for host first to generate the .pyi file
+BuildForHost
 foreach ($pythonVersion in $pythonVersions) {
     foreach ($platform in $platforms) {
         BuildWheels -PythonVersion $pythonVersion -Platform $platform

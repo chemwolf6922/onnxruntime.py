@@ -1,16 +1,15 @@
 cmake_minimum_required(VERSION 3.20)
 project(onnxruntime.py LANGUAGES CXX)
 
+# This does not work for Windows...
+# Please build with --config Release instead
+if(NOT CMAKE_BUILD_TYPE)
+  set(CMAKE_BUILD_TYPE Release)
+endif()
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-
-if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
-  set(default_build_type "Release")
-  message(STATUS "Setting build type to '${default_build_type}' as none was specified.")
-  set(CMAKE_BUILD_TYPE "${default_build_type}" CACHE STRING "Choose the type of build." FORCE)
-  set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release" "RelWithDebInfo" "MinSizeRel")
-endif()
 
 execute_process(
   COMMAND python "${CMAKE_SOURCE_DIR}/get_version.py"
@@ -55,6 +54,7 @@ if(NOT PYTHON_INCLUDE_DIR OR NOT PYTHON_LIBRARY)
   find_package(Python3 COMPONENTS Development REQUIRED)
   set(PYTHON_INCLUDE_DIR "${Python3_INCLUDE_DIRS}")
   set(PYTHON_LIBRARY "${Python3_LIBRARIES}")
+  set(BUILD_FOR_HOST TRUE)
 endif()
 
 message(STATUS "Using Python include directory: ${PYTHON_INCLUDE_DIR}")
@@ -70,13 +70,20 @@ target_link_libraries(_pyort PRIVATE
   "${ONNXRUNTIME_LIB_DIR}/${ONNXRUNTIME_LIB_NAME}.lib"
 )
 
-target_compile_definitions(_pyort PRIVATE PYBIND11_NUMPY_DTYPE=1)
 target_compile_definitions(_pyort PRIVATE PYORT_VERSION="${PYORT_VERSION}")
 set_target_properties(_pyort PROPERTIES
   PREFIX ""
   SUFFIX ".pyd"
   CXX_STANDARD 20
 )
+
+if(BUILD_FOR_HOST)
+  add_custom_command(TARGET _pyort POST_BUILD
+    COMMAND python -m pybind11_stubgen _pyort --output-dir "$<TARGET_FILE_DIR:_pyort>"
+    WORKING_DIRECTORY "$<TARGET_FILE_DIR:_pyort>"
+    COMMENT "Generate .pyi file. This only works when building for the host."
+  )
+endif()
 
 add_custom_command(TARGET _pyort POST_BUILD
   COMMAND python "${CMAKE_SOURCE_DIR}/pack_wheel.py" -b "$<CONFIG>" -p "${PYTHON_LIBRARY}" -a "${TARGET_ARCH}"
