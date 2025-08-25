@@ -258,7 +258,6 @@ try {
     Write-Host "Both packages downloaded successfully:"
     Write-Host "  x64 package: $x64OutDir"
     Write-Host "  arm64 package: $arm64OutDir"
-    Write-Output @($x64OutDir, $arm64OutDir)
 }
 finally {
     # Always clean up temporary working directory (zip and temp extract)
