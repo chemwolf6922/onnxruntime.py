@@ -1,9 +1,8 @@
 /onnxruntime
 /onnxruntime-arm64
 /dist
-/.vscode
+**/.vscode
 /build
 /build-wheel
 /nuget-packages
-/__pycache__
-
+**/__pycache__

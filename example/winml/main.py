@@ -1,0 +1,76 @@
+from importlib import metadata
+from pathlib import Path
+
+# DO NOT install pyort-lib for this example
+# We'll use the packed one in WinML
+try:
+    metadata.version('pyort-lib')
+    raise RuntimeError("pyort-lib is installed. Please uninstall it for this example.")
+except metadata.PackageNotFoundError:
+    pass
+
+# Quirk: There is a packed msvcp140.dll in pywinrt which may conflict with other binaries.
+# Thus we need to remove it.
+# If you do face the missing dll issue, please install the redistributable properly from
+# https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170
+site_packages_path = Path(str(metadata.distribution('winrt-runtime').locate_file('')))
+dll_path = site_packages_path / 'winrt' / 'msvcp140.dll'
+if dll_path.exists():
+    dll_path.unlink()
+
+from winui3.microsoft.windows.applicationmodel.dynamicdependency.bootstrap import (
+    InitializeOptions,
+    initialize
+)
+import winui3.microsoft.windows.ai.machinelearning as winml
+
+_win_app_sdk_handle = initialize(options=InitializeOptions.ON_NO_MATCH_SHOW_UI)
+# You can also use the with statement here.
+_win_app_sdk_handle.__enter__()
+
+catalog = winml.ExecutionProviderCatalog.get_default()
+
+# Quirk: Call this to create the default ort env since the WinML uses a temporary one for registering EPs.
+# This will be fixed in future releases of WinML
+import pyort as ort
+ort.get_ep_devices()
+
+# Install and register all compatible EPs
+catalog.ensure_and_register_all_async().get()
+
+
+# Normally you would import pyort here
+# import pyort as ort
+from argparse import ArgumentParser
+import numpy as np
+import tqdm
+parser = ArgumentParser()
+parser.add_argument("--model_path", "-m", type=Path, required=True, help="Path to the ONNX model file.")
+parser.add_argument("--num_inferences", "-n", type=int, default=100, help="Number of inferences to run.")
+args = parser.parse_args()
+
+ep_devices = ort.get_ep_devices()
+for (i, ep_device) in enumerate(ep_devices):
+    print(f"Ep Device {i}:")
+    print(f"    EP Name:       {ep_device.ep_name}")
+    print(f"    EP Vendor:     {ep_device.ep_vendor}")
+    print(f"    Device Type:   {ep_device.device.type.name}")
+    print(f"    Device Vendor: {ep_device.device.vendor}")
+index_str = input("Select the EP device index and press Enter: ")
+index = int(index_str)
+ep_device = ep_devices[index]
+
+session_options = ort.SessionOptions()
+session_options.append_execution_provider_v2([ep_device], {})
+model_path = Path(args.model_path).resolve()
+session = ort.Session(str(model_path), session_options)
+
+input_info = session.get_input_info()
+inputs = {}
+for input_name, tensor_info in input_info.items():
+    inputs[input_name] = np.random.uniform(low=0 ,high=1, size=tuple(tensor_info.shape)).astype(tensor_info.dtype)
+
+for i in tqdm.tqdm(range(args.num_inferences)):
+    session.run(inputs)
+
+_win_app_sdk_handle.__exit__(None, None, None)
