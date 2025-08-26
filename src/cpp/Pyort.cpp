@@ -202,6 +202,69 @@ std::vector<Pyort::EpDevice> Pyort::Env::GetEpDevices() const
     return devices;
 }
 
+/** ModelCompilationOptions */
+
+void Pyort::ModelCompilationOptions::ReleaseOrtType(OrtModelCompilationOptions* ptr)
+{
+    GetApi()->GetCompileApi()->ReleaseModelCompilationOptions(ptr);
+}
+
+void Pyort::ModelCompilationOptions::SetInputModelPath(const std::string& path)
+{
+    Status status = GetApi()->GetCompileApi()->ModelCompilationOptions_SetInputModelPath(
+        _ptr, StringToOrtString(path).c_str());
+    status.Check();
+}
+
+void Pyort::ModelCompilationOptions::SetInputModelFromBuffer(const pybind11::bytes& modelBytes)
+{
+    auto bufferView = static_cast<std::string_view>(modelBytes);
+    Status status = GetApi()->GetCompileApi()->ModelCompilationOptions_SetInputModelFromBuffer(
+        _ptr,
+        reinterpret_cast<const void*>(bufferView.data()),
+        bufferView.size());
+    status.Check();
+}
+
+void Pyort::ModelCompilationOptions::SetOutputModelExternalInitializersFile(
+    const std::string& path, size_t externalInitializerSizeThreshold)
+{
+    Status status = GetApi()->GetCompileApi()->ModelCompilationOptions_SetOutputModelExternalInitializersFile(
+        _ptr,
+        StringToOrtString(path).c_str(),
+        externalInitializerSizeThreshold);
+    status.Check();
+}
+
+void Pyort::ModelCompilationOptions::SetEpContextEmbedMode(bool embedContext)
+{
+    Status status = GetApi()->GetCompileApi()->ModelCompilationOptions_SetEpContextEmbedMode(_ptr, embedContext);
+    status.Check();
+}
+
+void Pyort::ModelCompilationOptions::CompileModelToFile(const std::string& path)
+{
+    Status status = GetApi()->GetCompileApi()->ModelCompilationOptions_SetOutputModelPath(
+        _ptr, StringToOrtString(path).c_str());
+    status.Check();
+    status = GetApi()->GetCompileApi()->CompileModel(*Env::GetSingleton(), _ptr);
+    status.Check();
+}
+
+pybind11::bytes Pyort::ModelCompilationOptions::CompileModelToBuffer()
+{
+    void* buffer = nullptr;
+    size_t bufferSize = 0;
+    Status status = GetApi()->GetCompileApi()->ModelCompilationOptions_SetOutputModelBuffer(
+        _ptr, GetAllocator(), &buffer, &bufferSize); 
+    status.Check();
+    status = GetApi()->GetCompileApi()->CompileModel(*Env::GetSingleton(), _ptr);
+    status.Check();
+    pybind11::bytes result{ static_cast<const char*>(buffer), bufferSize };
+    GetAllocator()->Free(GetAllocator(), buffer);
+    return result;
+}
+
 /** SessionOptions */
 
 Pyort::SessionOptions::SessionOptions()
@@ -235,6 +298,15 @@ void Pyort::SessionOptions::AppendExecutionProvider_V2(const std::vector<EpDevic
     }
     Pyort::Status status = GetApi()->SessionOptionsAppendExecutionProvider_V2(_ptr, *(Pyort::Env::GetSingleton()), ep_device_ptrs.data(), ep_device_ptrs.size(), ep_option_keys.data(), ep_option_values.data(), ep_option_keys.size());
     status.Check();
+}
+
+Pyort::ModelCompilationOptions Pyort::SessionOptions::CreateModelCompilationOptions() const
+{
+    OrtModelCompilationOptions* options = nullptr;
+    Pyort::Status status = GetApi()->GetCompileApi()->CreateModelCompilationOptionsFromSessionOptions(
+        *Env::GetSingleton(), _ptr, &options);
+    status.Check();
+    return ModelCompilationOptions{ options };
 }
 
 /** TypeInfo */

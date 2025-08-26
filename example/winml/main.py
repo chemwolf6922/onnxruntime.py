@@ -47,6 +47,7 @@ import tqdm
 parser = ArgumentParser()
 parser.add_argument("--model_path", "-m", type=Path, required=True, help="Path to the ONNX model file.")
 parser.add_argument("--num_inferences", "-n", type=int, default=100, help="Number of inferences to run.")
+parser.add_argument("--compile_model", "-c", action="store_true", help="Whether to compile the model.")
 args = parser.parse_args()
 
 ep_devices = ort.get_ep_devices()
@@ -63,6 +64,18 @@ ep_device = ep_devices[index]
 session_options = ort.SessionOptions()
 session_options.append_execution_provider_v2([ep_device], {})
 model_path = Path(args.model_path).resolve()
+if args.compile_model:
+    compiler = session_options.create_model_compilation_options()
+    compiler.set_input_model_path(str(model_path))
+    compiled_model_path = model_path.parent / (model_path.stem + "_compiled.onnx")
+    if compiled_model_path.exists():
+        compiled_model_path.unlink()
+    compiler.compile_model_to_file(str(compiled_model_path))
+    if compiled_model_path.exists():
+        print(f"Compiled model saved to {compiled_model_path}")
+        model_path = compiled_model_path
+    else:
+        print("No compile output found, using the original model.")
 session = ort.Session(str(model_path), session_options)
 
 input_info = session.get_input_info()
