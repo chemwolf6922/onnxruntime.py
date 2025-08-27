@@ -49,9 +49,32 @@ PYBIND11_MODULE(_pyort, m) {
         return Pyort::Env::GetSingleton()->GetEpDevices();
     });
 
+    pybind11::class_<Pyort::ModelCompilationOptions>(m, "ModelCompilationOptions")
+        .def("set_input_model_path",
+            &Pyort::ModelCompilationOptions::SetInputModelPath,
+            pybind11::arg("path"))
+        .def("set_input_model_from_buffer",
+            &Pyort::ModelCompilationOptions::SetInputModelFromBuffer,
+            pybind11::arg("model_bytes"))
+        .def("set_output_model_external_initializers_file",
+            &Pyort::ModelCompilationOptions::SetOutputModelExternalInitializersFile,
+            pybind11::arg("path"),
+            pybind11::arg("external_initializer_size_threshold"))
+        .def("set_ep_context_embed_mode",
+            &Pyort::ModelCompilationOptions::SetEpContextEmbedMode,
+            pybind11::arg("embed_context"))
+        .def("compile_model_to_file",
+            &Pyort::ModelCompilationOptions::CompileModelToFile,
+            pybind11::arg("path"))
+        .def("compile_model_to_buffer", &Pyort::ModelCompilationOptions::CompileModelToBuffer);
+
     pybind11::class_<Pyort::SessionOptions>(m, "SessionOptions")
         .def(pybind11::init<>())
-        .def("append_execution_provider_v2", &Pyort::SessionOptions::AppendExecutionProvider_V2, pybind11::arg("ep_devices"), pybind11::arg("options"));
+        .def("append_execution_provider_v2",
+            &Pyort::SessionOptions::AppendExecutionProvider_V2,
+            pybind11::arg("ep_devices"),
+            pybind11::arg("options"))
+        .def("create_model_compilation_options", &Pyort::SessionOptions::CreateModelCompilationOptions);
 
     pybind11::class_<Pyort::TensorInfo>(m, "TensorInfo")
         .def_readonly("shape", &Pyort::TensorInfo::shape)

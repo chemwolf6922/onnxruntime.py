@@ -107,6 +107,20 @@ namespace Pyort
         Env();
     };
 
+    class ModelCompilationOptions : public OrtTypeWrapper<OrtModelCompilationOptions, ModelCompilationOptions>
+    {
+    public:
+        static void ReleaseOrtType(OrtModelCompilationOptions* ptr);
+        using OrtTypeWrapper::OrtTypeWrapper;
+        void SetInputModelPath(const std::string& path);
+        void SetInputModelFromBuffer(const pybind11::bytes& modelBytes);
+        void SetOutputModelExternalInitializersFile(
+            const std::string& path, size_t externalInitializerSizeThreshold);
+        void SetEpContextEmbedMode(bool embedContext);
+        void CompileModelToFile(const std::string& path);
+        pybind11::bytes CompileModelToBuffer();
+    };
+
     class SessionOptions : public OrtTypeWrapper<OrtSessionOptions, SessionOptions>
     {
     public:
@@ -114,6 +128,7 @@ namespace Pyort
         SessionOptions();
         using OrtTypeWrapper::OrtTypeWrapper;
         void AppendExecutionProvider_V2(const std::vector<EpDevice>& ep_devices, const std::unordered_map<std::string, std::string>& ep_options);
+        ModelCompilationOptions CreateModelCompilationOptions() const;
     };
 
     class TypeInfo : public OrtTypeWrapper<OrtTypeInfo, TypeInfo>
