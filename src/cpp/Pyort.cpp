@@ -401,6 +401,35 @@ void Pyort::TensorTypeAndShapeInfo::ReleaseOrtType(OrtTensorTypeAndShapeInfo* pt
     GetApi()->ReleaseTensorTypeAndShapeInfo(ptr);
 }
 
+/** TensorInfo */
+
+Pyort::TensorInfo::TensorInfo(const TypeInfo& typeInfo)
+{
+    const OrtTensorTypeAndShapeInfo* tensorInfo = nullptr;
+    /** DO NOT free the tensorInfo. It's bind to the typeInfo */
+    Pyort::Status status = GetApi()->CastTypeInfoToTensorInfo(typeInfo, &tensorInfo);
+    status.Check();
+    size_t dimCount = 0;
+    status = GetApi()->GetDimensionsCount(tensorInfo, &dimCount);
+    status.Check();
+    shape.resize(dimCount);
+    /** The value will be -1 if the dimension is not fixed. */
+    status = GetApi()->GetDimensions(tensorInfo, shape.data(), dimCount);
+    status.Check();
+    std::vector<const char*> dimensionsRaw(dimCount, nullptr);
+    status = GetApi()->GetSymbolicDimensions(tensorInfo, dimensionsRaw.data(), dimCount);
+    status.Check();
+    dimensions.reserve(dimCount);
+    for (size_t j = 0; j < dimCount; ++j)
+    {
+        dimensions.emplace_back(dimensionsRaw[j] ? dimensionsRaw[j] : "");
+    }
+    ONNXTensorElementDataType type;
+    status = GetApi()->GetTensorElementType(tensorInfo, &type);
+    status.Check();
+    dtype = Pyort::Value::OrtTypeToNpType(type);
+}
+
 /** Session */
 
 Pyort::Session::Session(const std::string& modelPath, const SessionOptions& options)
@@ -430,38 +459,17 @@ std::unordered_map<std::string, Pyort::TensorInfo> Pyort::Session::GetInputInfo(
     auto allocator = GetAllocator();
     for (size_t i = 0; i < inputCount; i++)
     {
-        std::string name{};
-        {
-            char* nameRaw = nullptr;
-            status = GetApi()->SessionGetInputName(_ptr, i, allocator, &nameRaw);
-            status.Check();
-            name = nameRaw;
-            allocator->Free(allocator, nameRaw);
-        }
-        std::vector<int64_t> shape{};
-        pybind11::dtype dtype;
-        {
-            OrtTypeInfo* typeInfoRaw = nullptr;
-            status = GetApi()->SessionGetInputTypeInfo(_ptr, i, &typeInfoRaw);
-            status.Check();
-            TypeInfo typeInfo{ typeInfoRaw };
-            const OrtTensorTypeAndShapeInfo* tensorInfo = nullptr;
-            /** DO NOT free the tensorInfo. It's bind to the typeInfo */
-            status = GetApi()->CastTypeInfoToTensorInfo(typeInfo, &tensorInfo);
-            status.Check();
-            size_t dimCount = 0;
-            status = GetApi()->GetDimensionsCount(tensorInfo, &dimCount);
-            status.Check();
-            shape.resize(dimCount);
-            /** The value will be -1 if the dimension is not fixed. */
-            status = GetApi()->GetDimensions(tensorInfo, shape.data(), dimCount);
-            status.Check();
-            ONNXTensorElementDataType type;
-            status = GetApi()->GetTensorElementType(tensorInfo, &type);
-            status.Check();
-            dtype = Pyort::Value::OrtTypeToNpType(type);
-        }
-        inputInfo[name] = { shape, dtype };
+        char* nameRaw = nullptr;
+        status = GetApi()->SessionGetInputName(_ptr, i, allocator, &nameRaw);
+        status.Check();
+        std::string name{ nameRaw };
+        allocator->Free(allocator, nameRaw);
+
+        OrtTypeInfo* typeInfoRaw = nullptr;
+        status = GetApi()->SessionGetInputTypeInfo(_ptr, i, &typeInfoRaw);
+        status.Check();
+        TypeInfo typeInfo{ typeInfoRaw };
+        inputInfo.emplace(name, TensorInfo{ typeInfo });
     }
     return inputInfo;
 }
@@ -475,38 +483,17 @@ std::unordered_map<std::string, Pyort::TensorInfo> Pyort::Session::GetOutputInfo
     auto allocator = GetAllocator();
     for (size_t i = 0; i < outputCount; i++)
     {
-        std::string name{};
-        {
-            char* nameRaw = nullptr;
-            status = GetApi()->SessionGetOutputName(_ptr, i, allocator, &nameRaw);
-            status.Check();
-            name = nameRaw;
-            allocator->Free(allocator, nameRaw);
-        }
-        std::vector<int64_t> shape{};
-        pybind11::dtype dtype;
-        {
-            OrtTypeInfo* typeInfoRaw = nullptr;
-            status = GetApi()->SessionGetOutputTypeInfo(_ptr, i, &typeInfoRaw);
-            status.Check();
-            TypeInfo typeInfo{ typeInfoRaw };
-            const OrtTensorTypeAndShapeInfo* tensorInfo = nullptr;
-            /** DO NOT free the tensorInfo. It's bind to the typeInfo */
-            status = GetApi()->CastTypeInfoToTensorInfo(typeInfo, &tensorInfo);
-            status.Check();
-            size_t dimCount = 0;
-            status = GetApi()->GetDimensionsCount(tensorInfo, &dimCount);
-            status.Check();
-            shape.resize(dimCount);
-            /** The value will be -1 if the dimension is not fixed. */
-            status = GetApi()->GetDimensions(tensorInfo, shape.data(), dimCount);
-            status.Check();
-            ONNXTensorElementDataType type;
-            status = GetApi()->GetTensorElementType(tensorInfo, &type);
-            status.Check();
-            dtype = Pyort::Value::OrtTypeToNpType(type);
-        }
-        outputInfo[name] = { shape, dtype };
+        char* nameRaw = nullptr;
+        status = GetApi()->SessionGetOutputName(_ptr, i, allocator, &nameRaw);
+        status.Check();
+        std::string name{ nameRaw };
+        allocator->Free(allocator, nameRaw);
+
+        OrtTypeInfo* typeInfoRaw = nullptr;
+        status = GetApi()->SessionGetOutputTypeInfo(_ptr, i, &typeInfoRaw);
+        status.Check();
+        TypeInfo typeInfo{ typeInfoRaw };
+        outputInfo.emplace(name, TensorInfo{ typeInfo });
     }
     return outputInfo;
 }
