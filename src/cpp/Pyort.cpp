@@ -191,7 +191,7 @@ std::vector<Pyort::EpDevice> Pyort::Env::GetEpDevices() const
     /** DO NOT free this. This is owned by onnxruntime. */
     const OrtEpDevice* const* devicesRaw = nullptr;
     size_t deviceCount = 0;
-    Status status = GetApi()->GetEpDevices(_ptr, &devicesRaw, &deviceCount);
+    Pyort::Status status = GetApi()->GetEpDevices(_ptr, &devicesRaw, &deviceCount);
     status.Check();
     std::vector<Pyort::EpDevice> devices;
     devices.reserve(deviceCount);
@@ -211,7 +211,7 @@ void Pyort::ModelCompilationOptions::ReleaseOrtType(OrtModelCompilationOptions* 
 
 void Pyort::ModelCompilationOptions::SetInputModelPath(const std::string& path)
 {
-    Status status = GetApi()->GetCompileApi()->ModelCompilationOptions_SetInputModelPath(
+    Pyort::Status status = GetApi()->GetCompileApi()->ModelCompilationOptions_SetInputModelPath(
         _ptr, StringToOrtString(path).c_str());
     status.Check();
 }
@@ -219,7 +219,7 @@ void Pyort::ModelCompilationOptions::SetInputModelPath(const std::string& path)
 void Pyort::ModelCompilationOptions::SetInputModelFromBuffer(const pybind11::bytes& modelBytes)
 {
     auto bufferView = static_cast<std::string_view>(modelBytes);
-    Status status = GetApi()->GetCompileApi()->ModelCompilationOptions_SetInputModelFromBuffer(
+    Pyort::Status status = GetApi()->GetCompileApi()->ModelCompilationOptions_SetInputModelFromBuffer(
         _ptr,
         reinterpret_cast<const void*>(bufferView.data()),
         bufferView.size());
@@ -229,7 +229,7 @@ void Pyort::ModelCompilationOptions::SetInputModelFromBuffer(const pybind11::byt
 void Pyort::ModelCompilationOptions::SetOutputModelExternalInitializersFile(
     const std::string& path, size_t externalInitializerSizeThreshold)
 {
-    Status status = GetApi()->GetCompileApi()->ModelCompilationOptions_SetOutputModelExternalInitializersFile(
+    Pyort::Status status = GetApi()->GetCompileApi()->ModelCompilationOptions_SetOutputModelExternalInitializersFile(
         _ptr,
         StringToOrtString(path).c_str(),
         externalInitializerSizeThreshold);
@@ -238,13 +238,13 @@ void Pyort::ModelCompilationOptions::SetOutputModelExternalInitializersFile(
 
 void Pyort::ModelCompilationOptions::SetEpContextEmbedMode(bool embedContext)
 {
-    Status status = GetApi()->GetCompileApi()->ModelCompilationOptions_SetEpContextEmbedMode(_ptr, embedContext);
+    Pyort::Status status = GetApi()->GetCompileApi()->ModelCompilationOptions_SetEpContextEmbedMode(_ptr, embedContext);
     status.Check();
 }
 
 void Pyort::ModelCompilationOptions::CompileModelToFile(const std::string& path)
 {
-    Status status = GetApi()->GetCompileApi()->ModelCompilationOptions_SetOutputModelPath(
+    Pyort::Status status = GetApi()->GetCompileApi()->ModelCompilationOptions_SetOutputModelPath(
         _ptr, StringToOrtString(path).c_str());
     status.Check();
     status = GetApi()->GetCompileApi()->CompileModel(*Env::GetSingleton(), _ptr);
@@ -255,7 +255,7 @@ pybind11::bytes Pyort::ModelCompilationOptions::CompileModelToBuffer()
 {
     void* buffer = nullptr;
     size_t bufferSize = 0;
-    Status status = GetApi()->GetCompileApi()->ModelCompilationOptions_SetOutputModelBuffer(
+    Pyort::Status status = GetApi()->GetCompileApi()->ModelCompilationOptions_SetOutputModelBuffer(
         _ptr, GetAllocator(), &buffer, &bufferSize); 
     status.Check();
     status = GetApi()->GetCompileApi()->CompileModel(*Env::GetSingleton(), _ptr);
@@ -279,24 +279,102 @@ void Pyort::SessionOptions::ReleaseOrtType(OrtSessionOptions* ptr)
     GetApi()->ReleaseSessionOptions(ptr);
 }
 
-void Pyort::SessionOptions::AppendExecutionProvider_V2(const std::vector<EpDevice>& ep_devices, const std::unordered_map<std::string, std::string>& ep_options)
+void Pyort::SessionOptions::AppendExecutionProvider_V2(
+    const std::vector<EpDevice>& epDevices,
+    const std::unordered_map<std::string, std::string>& epOptions)
 {
-    std::vector<const OrtEpDevice*> ep_device_ptrs;
-    ep_device_ptrs.reserve(ep_devices.size());
-    for (const auto& device : ep_devices)
+    std::vector<const OrtEpDevice*> epDevicePtrs;
+    epDevicePtrs.reserve(epDevices.size());
+    for (const auto& device : epDevices)
     {
-        ep_device_ptrs.push_back(device);
+        epDevicePtrs.push_back(device);
     }
-    std::vector<const char*> ep_option_keys;
-    ep_option_keys.reserve(ep_options.size());
-    std::vector<const char*> ep_option_values;
-    ep_option_values.reserve(ep_options.size());
-    for (const auto& [k, v] : ep_options)
+    std::vector<const char*> epOptionKeys;
+    epOptionKeys.reserve(epOptions.size());
+    std::vector<const char*> epOptionValues;
+    epOptionValues.reserve(epOptions.size());
+    for (const auto& [k, v] : epOptions)
     {
-        ep_option_keys.push_back(k.c_str());
-        ep_option_values.push_back(v.c_str());
+        epOptionKeys.push_back(k.c_str());
+        epOptionValues.push_back(v.c_str());
     }
-    Pyort::Status status = GetApi()->SessionOptionsAppendExecutionProvider_V2(_ptr, *(Pyort::Env::GetSingleton()), ep_device_ptrs.data(), ep_device_ptrs.size(), ep_option_keys.data(), ep_option_values.data(), ep_option_keys.size());
+    Pyort::Status status = GetApi()->SessionOptionsAppendExecutionProvider_V2(
+        _ptr,
+        *Pyort::Env::GetSingleton(),
+        epDevicePtrs.data(),
+        epDevicePtrs.size(),
+        epOptionKeys.data(),
+        epOptionValues.data(),
+        epOptionKeys.size());
+    status.Check();
+}
+
+void Pyort::SessionOptions::SetEpSelectionPolicy(OrtExecutionProviderDevicePolicy policy)
+{
+    Pyort::Status status = GetApi()->SessionOptionsSetEpSelectionPolicy(_ptr, policy);
+    status.Check();
+}
+
+void Pyort::SessionOptions::SetEpSelectionPolicyDelegate(pybind11::function delegate)
+{
+    ::EpSelectionDelegate delegateWrapper = [](
+        const OrtEpDevice** ep_devices,
+        size_t num_devices,
+        const OrtKeyValuePairs* model_metadata,
+        const OrtKeyValuePairs* runtime_metadata,
+        const OrtEpDevice** selected,
+        size_t max_selected,
+        size_t* num_selected,
+        void* state
+    ) -> OrtStatus* {
+        try
+        {
+            PyObject* raw = static_cast<PyObject*>(state);
+            pybind11::function delegate = pybind11::reinterpret_borrow<pybind11::function>(raw);
+            std::vector<Pyort::EpDevice> devices;
+            devices.reserve(num_devices);
+            for (size_t i = 0; i < num_devices; ++i)
+            {
+                devices.emplace_back(ep_devices[i]);
+            }
+            auto modelMetadata = Pyort::KeyValuePairsToMap(model_metadata);
+            auto runtimeMetadata = Pyort::KeyValuePairsToMap(runtime_metadata);
+            pybind11::object result = pybind11::none();
+            {
+                pybind11::gil_scoped_acquire acquire;
+                result = delegate(devices, modelMetadata, runtimeMetadata, max_selected);
+            }
+            if (result.is_none())
+            {
+                *num_selected = 0;
+                return nullptr;
+            }
+            std::vector<Pyort::EpDevice> selectedDevices = result.cast<std::vector<Pyort::EpDevice>>();
+            if (selectedDevices.size() > max_selected)
+            {
+                throw std::runtime_error("The number of selected devices exceeds max_selected");
+            }
+            for (size_t i = 0; i < selectedDevices.size(); ++i)
+            {
+                selected[i] = selectedDevices[i];
+            }
+            *num_selected = selectedDevices.size();
+            return nullptr;
+        }
+        catch (const std::exception& ex)
+        {
+            return GetApi()->CreateStatus(ORT_FAIL, ex.what());
+        }
+        catch (...)
+        {
+            return GetApi()->CreateStatus(ORT_FAIL, "Unknown error in EpSelectionDelegate");
+        }
+    };
+    Pyort::Status status = GetApi()->SessionOptionsSetEpSelectionPolicyDelegate(
+        _ptr,
+        delegateWrapper,
+        /** If the python function gets deleted somehow, this will cause an invalid access. */
+        delegate.ptr());
     status.Check();
 }
 
@@ -346,7 +424,7 @@ void Pyort::Session::ReleaseOrtType(OrtSession* ptr)
 std::unordered_map<std::string, Pyort::TensorInfo> Pyort::Session::GetInputInfo() const
 {
     size_t inputCount = 0;
-    Status status = GetApi()->SessionGetInputCount(_ptr, &inputCount);
+    Pyort::Status status = GetApi()->SessionGetInputCount(_ptr, &inputCount);
     status.Check();
     std::unordered_map<std::string, Pyort::TensorInfo> inputInfo;
     auto allocator = GetAllocator();
@@ -391,7 +469,7 @@ std::unordered_map<std::string, Pyort::TensorInfo> Pyort::Session::GetInputInfo(
 std::unordered_map<std::string, Pyort::TensorInfo> Pyort::Session::GetOutputInfo() const
 {
     size_t outputCount = 0;
-    Status status = GetApi()->SessionGetOutputCount(_ptr, &outputCount);
+    Pyort::Status status = GetApi()->SessionGetOutputCount(_ptr, &outputCount);
     status.Check();
     std::unordered_map<std::string, Pyort::TensorInfo> outputInfo;
     auto allocator = GetAllocator();
@@ -464,7 +542,7 @@ std::unordered_map<std::string, pybind11::array> Pyort::Session::Run(
         outputNamesView.emplace_back(pair.first.c_str());
     }
     /** Run the session */
-    Status status = GetApi()->Run(
+    Pyort::Status status = GetApi()->Run(
         _ptr, nullptr,
         inputNamesView.data(), inputValuesView.data(), inputs.size(),
         outputNamesView.data(), outputInfo.size(), outputValues.data());

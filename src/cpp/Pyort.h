@@ -5,6 +5,7 @@
 #include <unordered_map>
 #include <vector>
 #include <optional>
+#include <functional>
 
 /** Use the C API for maximum compatibility */
 #include <onnxruntime_c_api.h>
@@ -127,7 +128,11 @@ namespace Pyort
         static void ReleaseOrtType(OrtSessionOptions* ptr);
         SessionOptions();
         using OrtTypeWrapper::OrtTypeWrapper;
-        void AppendExecutionProvider_V2(const std::vector<EpDevice>& ep_devices, const std::unordered_map<std::string, std::string>& ep_options);
+        void AppendExecutionProvider_V2(
+            const std::vector<EpDevice>& epDevices,
+            const std::unordered_map<std::string, std::string>& epOptions);
+        void SetEpSelectionPolicy(OrtExecutionProviderDevicePolicy policy);
+        void SetEpSelectionPolicyDelegate(pybind11::function delegate);
         ModelCompilationOptions CreateModelCompilationOptions() const;
     };
 

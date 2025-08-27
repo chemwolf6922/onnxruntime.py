@@ -23,6 +23,15 @@ PYBIND11_MODULE(_pyort, m) {
         .value("GPU", OrtHardwareDeviceType_GPU)
         .value("NPU", OrtHardwareDeviceType_NPU);
 
+    pybind11::enum_<OrtExecutionProviderDevicePolicy>(m, "ExecutionProviderDevicePolicy")
+        .value("DEFAULT", OrtExecutionProviderDevicePolicy_DEFAULT)
+        .value("PREFER_CPU", OrtExecutionProviderDevicePolicy_PREFER_CPU)
+        .value("PREFER_NPU", OrtExecutionProviderDevicePolicy_PREFER_NPU)
+        .value("PREFER_GPU", OrtExecutionProviderDevicePolicy_PREFER_GPU)
+        .value("MAX_PERFORMANCE", OrtExecutionProviderDevicePolicy_MAX_PERFORMANCE)
+        .value("MAX_EFFICIENCY", OrtExecutionProviderDevicePolicy_MAX_EFFICIENCY)
+        .value("MIN_OVERALL_POWER", OrtExecutionProviderDevicePolicy_MIN_OVERALL_POWER);
+
     pybind11::class_<Pyort::HardwareDevice>(m, "HardwareDevice")
         .def_readonly("type", &Pyort::HardwareDevice::type)
         .def_readonly("vendor_id", &Pyort::HardwareDevice::vendorId)
@@ -74,6 +83,15 @@ PYBIND11_MODULE(_pyort, m) {
             &Pyort::SessionOptions::AppendExecutionProvider_V2,
             pybind11::arg("ep_devices"),
             pybind11::arg("options"))
+        .def("set_ep_selection_policy",
+            &Pyort::SessionOptions::SetEpSelectionPolicy,
+            pybind11::arg("policy"))
+        .def("set_ep_selection_policy_delegate",
+            &Pyort::SessionOptions::SetEpSelectionPolicyDelegate,
+            pybind11::arg("delegate"),
+            R"pbdoc(
+set_ep_selection_policy_delegate(delegate: Callable[[List[EpDevice], Dict[str, str], Dict[str, str], int]])
+            )pbdoc")
         .def("create_model_compilation_options", &Pyort::SessionOptions::CreateModelCompilationOptions);
 
     pybind11::class_<Pyort::TensorInfo>(m, "TensorInfo")

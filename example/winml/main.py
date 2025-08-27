@@ -48,21 +48,48 @@ parser = ArgumentParser()
 parser.add_argument("--model_path", "-m", type=Path, required=True, help="Path to the ONNX model file.")
 parser.add_argument("--num_inferences", "-n", type=int, default=100, help="Number of inferences to run.")
 parser.add_argument("--compile_model", "-c", action="store_true", help="Whether to compile the model.")
+parser.add_argument("--ep_policy", "-p", type=str,
+                    choices=list(ort.ExecutionProviderDevicePolicy.__members__.keys()), default=None,
+                    help="Execution provider selection policy to use.")
+parser.add_argument("--use_policy_delegate", action="store_true", help="Whether to use a custom policy delegate.")
 args = parser.parse_args()
 
-ep_devices = ort.get_ep_devices()
-for (i, ep_device) in enumerate(ep_devices):
-    print(f"Ep Device {i}:")
+def dump_ep_device(ep_device: ort.EpDevice, index: int | None = None):
+    print(f"Ep Device {index if index else ""}:")
     print(f"    EP Name:       {ep_device.ep_name}")
     print(f"    EP Vendor:     {ep_device.ep_vendor}")
     print(f"    Device Type:   {ep_device.device.type.name}")
     print(f"    Device Vendor: {ep_device.device.vendor}")
-index_str = input("Select the EP device index and press Enter: ")
-index = int(index_str)
-ep_device = ep_devices[index]
+
+def ep_policy_delegate(ep_devices: list[ort.EpDevice],
+                                model_metadata: dict[str, str],
+                                runtime_metadata: dict[str, str],
+                                max_eps: int) -> list[ort.EpDevice]:
+    print("In EP policy delegate:")
+    for (i, ep_device) in enumerate(ep_devices):
+        dump_ep_device(ep_device, i)
+    print(f"Model metadata: {model_metadata}")
+    print(f"Runtime metadata: {runtime_metadata}")
+    print(f"Max EPs allowed: {max_eps}")
+    index_str = input("Select the EP device index and press Enter: ")
+    index = int(index_str)
+    return [ep_devices[index]]
 
 session_options = ort.SessionOptions()
-session_options.append_execution_provider_v2([ep_device], {})
+if args.ep_policy is not None:
+    policy = ort.ExecutionProviderDevicePolicy.__members__[args.ep_policy]
+    session_options.set_ep_selection_policy(policy)
+elif args.use_policy_delegate:
+    session_options.set_ep_selection_policy_delegate(ep_policy_delegate)
+else:
+    ep_devices = ort.get_ep_devices()
+    for (i, ep_device) in enumerate(ep_devices):
+        dump_ep_device(ep_device, i)
+    index_str = input("Select the EP device index and press Enter: ")
+    index = int(index_str)
+    ep_device = ep_devices[index]
+    session_options.append_execution_provider_v2([ep_device], {})
+
 model_path = Path(args.model_path).resolve()
 if args.compile_model:
     compiler = session_options.create_model_compilation_options()
@@ -76,6 +103,7 @@ if args.compile_model:
         model_path = compiled_model_path
     else:
         print("No compile output found, using the original model.")
+
 session = ort.Session(str(model_path), session_options)
 
 input_info = session.get_input_info()
