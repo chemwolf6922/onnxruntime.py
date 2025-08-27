@@ -24,9 +24,15 @@ from winui3.microsoft.windows.applicationmodel.dynamicdependency.bootstrap impor
 )
 import winui3.microsoft.windows.ai.machinelearning as winml
 
-_win_app_sdk_handle = initialize(options=InitializeOptions.ON_NO_MATCH_SHOW_UI)
-# You can also use the with statement here.
-_win_app_sdk_handle.__enter__()
+class WinAppSdkHandle:
+    def __init__(self, handle) -> None:
+        self._handle = handle
+        self._handle.__enter__()
+
+    def __del__(self) -> None:
+        self._handle.__exit__(None, None, None)
+
+_win_app_sdk_handle = WinAppSdkHandle(initialize(options=InitializeOptions.ON_NO_MATCH_SHOW_UI))
 
 catalog = winml.ExecutionProviderCatalog.get_default()
 
@@ -109,9 +115,10 @@ session = ort.Session(str(model_path), session_options)
 input_info = session.get_input_info()
 inputs = {}
 for input_name, tensor_info in input_info.items():
+    if any(dim <= 0 for dim in tensor_info.shape):
+        raise RuntimeError(f"Input {input_name} has dynamic shape {tensor_info.shape}. "
+                           "Please use a model with static input shape for this example.")
     inputs[input_name] = np.random.uniform(low=0 ,high=1, size=tuple(tensor_info.shape)).astype(tensor_info.dtype)
 
 for i in tqdm.tqdm(range(args.num_inferences)):
     session.run(inputs)
-
-_win_app_sdk_handle.__exit__(None, None, None)
