@@ -128,6 +128,20 @@ namespace Pyort
         static void ReleaseOrtType(OrtSessionOptions* ptr);
         SessionOptions();
         using OrtTypeWrapper::OrtTypeWrapper;
+        void SetOptimizedModelFilePath(const std::string& path);
+        void SetSessionExecutionMode(ExecutionMode mode);
+        void EnableProfiling(const std::string& profileFilePrefix);
+        void DisableProfiling();
+        void EnableMemPattern();
+        void DisableMemPattern();
+        void EnableCpuMemArena();
+        void DisableCpuMemArena();
+        void SetSessionLogId(const std::string& logId);
+        void SetSessionLogVerbosityLevel(int level);
+        void SetSessionLogSeverityLevel(int level);
+        void SetSessionGraphOptimizationLevel(GraphOptimizationLevel level);
+        void SetIntraOpNumThreads(int intraOpNumThreads);
+        void SetInterOpNumThreads(int interOpNumThreads);
         void AppendExecutionProvider_V2(
             const std::vector<EpDevice>& epDevices,
             const std::unordered_map<std::string, std::string>& epOptions);
@@ -161,6 +175,7 @@ namespace Pyort
     public:
         static void ReleaseOrtType(OrtSession* ptr);
         Session(const std::string& modelPath, const SessionOptions& options);
+        Session(const pybind11::bytes& modelBytes, const SessionOptions& options);
 
         std::unordered_map<std::string, TensorInfo> GetInputInfo() const;
         std::unordered_map<std::string, TensorInfo> GetOutputInfo() const;

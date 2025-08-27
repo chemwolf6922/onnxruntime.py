@@ -18,6 +18,16 @@ PYBIND11_MODULE(_pyort, m) {
     m.attr("__version__") = PYORT_VERSION;
     m.attr("ORT_API_VERSION") = ORT_API_VERSION;
 
+    pybind11::enum_<ExecutionMode>(m, "ExecutionMode")
+        .value("SEQUENTIAL", ORT_SEQUENTIAL)
+        .value("PARALLEL", ORT_PARALLEL);
+
+    pybind11::enum_<GraphOptimizationLevel>(m, "GraphOptimizationLevel")
+        .value("DISABLE_ALL", ORT_DISABLE_ALL)
+        .value("ENABLE_BASIC", ORT_ENABLE_BASIC)
+        .value("ENABLE_EXTENDED", ORT_ENABLE_EXTENDED)
+        .value("ENABLE_ALL", ORT_ENABLE_ALL);
+
     pybind11::enum_<OrtHardwareDeviceType>(m, "HardwareDeviceType")
         .value("CPU", OrtHardwareDeviceType_CPU)
         .value("GPU", OrtHardwareDeviceType_GPU)
@@ -79,6 +89,38 @@ PYBIND11_MODULE(_pyort, m) {
 
     pybind11::class_<Pyort::SessionOptions>(m, "SessionOptions")
         .def(pybind11::init<>())
+        .def("set_optimized_model_file_path",
+            &Pyort::SessionOptions::SetOptimizedModelFilePath,
+            pybind11::arg("path"))
+        .def("set_session_execution_mode",
+            &Pyort::SessionOptions::SetSessionExecutionMode,
+            pybind11::arg("mode"))
+        .def("enable_profiling",
+            &Pyort::SessionOptions::EnableProfiling,
+            pybind11::arg("profile_file_prefix"))
+        .def("disable_profiling", &Pyort::SessionOptions::DisableProfiling)
+        .def("enable_mem_pattern", &Pyort::SessionOptions::EnableMemPattern)
+        .def("disable_mem_pattern", &Pyort::SessionOptions::DisableMemPattern)
+        .def("enable_cpu_mem_arena", &Pyort::SessionOptions::EnableCpuMemArena)
+        .def("disable_cpu_mem_arena", &Pyort::SessionOptions::DisableCpuMemArena)
+        .def("set_session_log_id",
+            &Pyort::SessionOptions::SetSessionLogId,
+            pybind11::arg("log_id"))
+        .def("set_session_log_verbosity_level",
+            &Pyort::SessionOptions::SetSessionLogVerbosityLevel,
+            pybind11::arg("level"))
+        .def("set_session_log_severity_level",
+            &Pyort::SessionOptions::SetSessionLogSeverityLevel,
+            pybind11::arg("level"))
+        .def("set_session_graph_optimization_level",
+            &Pyort::SessionOptions::SetSessionGraphOptimizationLevel,
+            pybind11::arg("level"))
+        .def("set_intra_op_num_threads",
+            &Pyort::SessionOptions::SetIntraOpNumThreads,
+            pybind11::arg("intra_op_num_threads"))
+        .def("set_inter_op_num_threads",
+            &Pyort::SessionOptions::SetInterOpNumThreads,
+            pybind11::arg("inter_op_num_threads"))
         .def("append_execution_provider_v2",
             &Pyort::SessionOptions::AppendExecutionProvider_V2,
             pybind11::arg("ep_devices"),
@@ -91,7 +133,7 @@ PYBIND11_MODULE(_pyort, m) {
             pybind11::arg("delegate"),
             R"pbdoc(
 set_ep_selection_policy_delegate(delegate: Callable[[List[EpDevice], Dict[str, str], Dict[str, str], int]])
-            )pbdoc")
+)pbdoc")
         .def("create_model_compilation_options", &Pyort::SessionOptions::CreateModelCompilationOptions);
 
     pybind11::class_<Pyort::TensorInfo>(m, "TensorInfo")
@@ -101,6 +143,9 @@ set_ep_selection_policy_delegate(delegate: Callable[[List[EpDevice], Dict[str, s
     pybind11::class_<Pyort::Session, std::shared_ptr<Pyort::Session>>(m, "Session")
         .def(pybind11::init<const std::string&, const Pyort::SessionOptions&>(),
              pybind11::arg("model_path"),
+             pybind11::arg("options"))
+        .def(pybind11::init<const pybind11::bytes&, const Pyort::SessionOptions&>(),
+             pybind11::arg("model_bytes"),
              pybind11::arg("options"))
         .def("get_input_info", &Pyort::Session::GetInputInfo)
         .def("get_output_info", &Pyort::Session::GetOutputInfo)
