@@ -167,7 +167,11 @@ namespace Pyort
     struct TensorInfo
     {
         std::vector<int64_t> shape;
+        std::vector<std::string> dimensions;
         pybind11::dtype dtype;
+
+        TensorInfo() = default;
+        TensorInfo(const TypeInfo& typeInfo);
     };
 
     class Session : public OrtTypeWrapper<OrtSession, Session>

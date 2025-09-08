@@ -138,6 +138,7 @@ set_ep_selection_policy_delegate(delegate: Callable[[List[EpDevice], Dict[str, s
 
     pybind11::class_<Pyort::TensorInfo>(m, "TensorInfo")
         .def_readonly("shape", &Pyort::TensorInfo::shape)
+        .def_readonly("dimensions", &Pyort::TensorInfo::dimensions)
         .def_readonly("dtype", &Pyort::TensorInfo::dtype);
 
     pybind11::class_<Pyort::Session, std::shared_ptr<Pyort::Session>>(m, "Session")
