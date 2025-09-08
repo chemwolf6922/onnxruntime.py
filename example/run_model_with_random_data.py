@@ -14,15 +14,15 @@ session_options = ort.SessionOptions()
 session = ort.Session(str(model_path), session_options)
 input_info = session.get_input_info()
 inputs = {}
-has_dynamic = False
+has_non_positive_dim = False
 for input_name, tensor_info in input_info.items():
     print(f"Input {input_name}: {tensor_info.shape} {tensor_info.dimensions} {tensor_info.dtype}")
     if any(dim <=0 for dim in tensor_info.shape):
-        has_dynamic = True
+        has_non_positive_dim = True
     else:
         inputs[input_name] = np.random.uniform(low=0 ,high=1, size=tuple(tensor_info.shape)).astype(tensor_info.dtype)
-if has_dynamic:
-    print("Model has dynamic input shapes. It is not run.")
+if has_non_positive_dim:
+    print("Model has non-positive input shapes. It is not run.")
     exit(0)
 outputs = session.run(inputs)
 print(f"Model run completed")

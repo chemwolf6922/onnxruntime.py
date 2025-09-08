@@ -116,8 +116,8 @@ input_info = session.get_input_info()
 inputs = {}
 for input_name, tensor_info in input_info.items():
     if any(dim <= 0 for dim in tensor_info.shape):
-        raise RuntimeError(f"Input {input_name} has dynamic shape {tensor_info.shape}. "
-                           "Please use a model with static input shape for this example.")
+        raise RuntimeError(f"Input {input_name} has non-positive shape {tensor_info.shape}. "
+                           "Please use a model with constructable input shape for this example.")
     inputs[input_name] = np.random.uniform(low=0 ,high=1, size=tuple(tensor_info.shape)).astype(tensor_info.dtype)
 
 for i in tqdm.tqdm(range(args.num_inferences)):
