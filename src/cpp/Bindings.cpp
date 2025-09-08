@@ -121,6 +121,9 @@ PYBIND11_MODULE(_pyort, m) {
         .def("set_inter_op_num_threads",
             &Pyort::SessionOptions::SetInterOpNumThreads,
             pybind11::arg("inter_op_num_threads"))
+        .def("register_custom_ops_library",
+            &Pyort::SessionOptions::RegisterCustomOpsLibrary,
+            pybind11::arg("library_path"))
         .def("append_execution_provider_v2",
             &Pyort::SessionOptions::AppendExecutionProvider_V2,
             pybind11::arg("ep_devices"),
@@ -141,6 +144,20 @@ set_ep_selection_policy_delegate(delegate: Callable[[List[EpDevice], Dict[str, s
         .def_readonly("dimensions", &Pyort::TensorInfo::dimensions)
         .def_readonly("dtype", &Pyort::TensorInfo::dtype);
 
+    pybind11::class_<Pyort::RunOptions>(m, "RunOptions")
+        .def(pybind11::init<>())
+        .def_property("run_log_verbosity_level",
+            &Pyort::RunOptions::GetRunLogVerbosityLevel,
+            &Pyort::RunOptions::SetRunLogVerbosityLevel)
+        .def_property("run_log_severity_level",
+            &Pyort::RunOptions::GetRunLogSeverityLevel,
+            &Pyort::RunOptions::SetRunLogSeverityLevel)
+        .def_property("run_tag",
+            &Pyort::RunOptions::GetRunTag,
+            &Pyort::RunOptions::SetRunTag)
+        .def("set_terminate", &Pyort::RunOptions::SetTerminate)
+        .def("unset_terminate", &Pyort::RunOptions::UnsetTerminate);
+
     pybind11::class_<Pyort::Session, std::shared_ptr<Pyort::Session>>(m, "Session")
         .def(pybind11::init<const std::string&, const Pyort::SessionOptions&>(),
              pybind11::arg("model_path"),
@@ -152,5 +169,6 @@ set_ep_selection_policy_delegate(delegate: Callable[[List[EpDevice], Dict[str, s
         .def("get_output_info", &Pyort::Session::GetOutputInfo)
         .def("run",
              &Pyort::Session::Run,
-             pybind11::arg("inputs"));
+             pybind11::arg("inputs"),
+             pybind11::arg("run_options") = std::nullopt);
 }

@@ -122,6 +122,13 @@ namespace Pyort
         pybind11::bytes CompileModelToBuffer();
     };
 
+    class LibraryHandle : public OrtTypeWrapper<void, LibraryHandle>
+    {
+    public:
+        static void ReleaseOrtType(void* ptr);
+        using OrtTypeWrapper::OrtTypeWrapper;
+    };
+
     class SessionOptions : public OrtTypeWrapper<OrtSessionOptions, SessionOptions>
     {
     public:
@@ -142,6 +149,7 @@ namespace Pyort
         void SetSessionGraphOptimizationLevel(GraphOptimizationLevel level);
         void SetIntraOpNumThreads(int intraOpNumThreads);
         void SetInterOpNumThreads(int interOpNumThreads);
+        LibraryHandle RegisterCustomOpsLibrary(const std::string& libraryPath);
         void AppendExecutionProvider_V2(
             const std::vector<EpDevice>& epDevices,
             const std::unordered_map<std::string, std::string>& epOptions);
@@ -174,6 +182,21 @@ namespace Pyort
         TensorInfo(const TypeInfo& typeInfo);
     };
 
+    class RunOptions : public OrtTypeWrapper<OrtRunOptions, RunOptions>
+    {
+    public:
+        static void ReleaseOrtType(OrtRunOptions* ptr);
+        RunOptions();
+        void SetRunLogVerbosityLevel(int level);
+        int GetRunLogVerbosityLevel() const;
+        void SetRunLogSeverityLevel(int level);
+        int GetRunLogSeverityLevel() const;
+        void SetRunTag(const std::string& tag);
+        std::string GetRunTag() const;
+        void SetTerminate();
+        void UnsetTerminate();
+    };
+
     class Session : public OrtTypeWrapper<OrtSession, Session>
     {
     public:
@@ -184,7 +207,8 @@ namespace Pyort
         std::unordered_map<std::string, TensorInfo> GetInputInfo() const;
         std::unordered_map<std::string, TensorInfo> GetOutputInfo() const;
         std::unordered_map<std::string, pybind11::array> Run(
-            const std::unordered_map<std::string, pybind11::array>& inputs) const;
+            const std::unordered_map<std::string, pybind11::array>& inputs,
+            const std::optional<std::reference_wrapper<RunOptions>>& runOptions) const;
     };
 
     class Value : public OrtTypeWrapper<OrtValue, Value>
