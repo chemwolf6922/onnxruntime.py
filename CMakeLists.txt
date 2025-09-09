@@ -70,6 +70,8 @@ target_link_libraries(_pyort PRIVATE
   "${ONNXRUNTIME_LIB_DIR}/${ONNXRUNTIME_LIB_NAME}.lib"
 )
 
+# TODO: -ldl for Linux.
+
 target_compile_definitions(_pyort PRIVATE PYORT_VERSION="${PYORT_VERSION}")
 set_target_properties(_pyort PROPERTIES
   PREFIX ""
