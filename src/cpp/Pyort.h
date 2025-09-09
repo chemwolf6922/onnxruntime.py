@@ -122,12 +122,34 @@ namespace Pyort
         pybind11::bytes CompileModelToBuffer();
     };
 
+    class LibraryHandle : public OrtTypeWrapper<void, LibraryHandle>
+    {
+    public:
+        static void ReleaseOrtType(void* ptr);
+        using OrtTypeWrapper::OrtTypeWrapper;
+    };
+
     class SessionOptions : public OrtTypeWrapper<OrtSessionOptions, SessionOptions>
     {
     public:
         static void ReleaseOrtType(OrtSessionOptions* ptr);
         SessionOptions();
         using OrtTypeWrapper::OrtTypeWrapper;
+        void SetOptimizedModelFilePath(const std::string& path);
+        void SetSessionExecutionMode(ExecutionMode mode);
+        void EnableProfiling(const std::string& profileFilePrefix);
+        void DisableProfiling();
+        void EnableMemPattern();
+        void DisableMemPattern();
+        void EnableCpuMemArena();
+        void DisableCpuMemArena();
+        void SetSessionLogId(const std::string& logId);
+        void SetSessionLogVerbosityLevel(int level);
+        void SetSessionLogSeverityLevel(int level);
+        void SetSessionGraphOptimizationLevel(GraphOptimizationLevel level);
+        void SetIntraOpNumThreads(int intraOpNumThreads);
+        void SetInterOpNumThreads(int interOpNumThreads);
+        LibraryHandle RegisterCustomOpsLibrary(const std::string& libraryPath);
         void AppendExecutionProvider_V2(
             const std::vector<EpDevice>& epDevices,
             const std::unordered_map<std::string, std::string>& epOptions);
@@ -160,16 +182,33 @@ namespace Pyort
         TensorInfo(const TypeInfo& typeInfo);
     };
 
+    class RunOptions : public OrtTypeWrapper<OrtRunOptions, RunOptions>
+    {
+    public:
+        static void ReleaseOrtType(OrtRunOptions* ptr);
+        RunOptions();
+        void SetRunLogVerbosityLevel(int level);
+        int GetRunLogVerbosityLevel() const;
+        void SetRunLogSeverityLevel(int level);
+        int GetRunLogSeverityLevel() const;
+        void SetRunTag(const std::string& tag);
+        std::string GetRunTag() const;
+        void SetTerminate();
+        void UnsetTerminate();
+    };
+
     class Session : public OrtTypeWrapper<OrtSession, Session>
     {
     public:
         static void ReleaseOrtType(OrtSession* ptr);
         Session(const std::string& modelPath, const SessionOptions& options);
+        Session(const pybind11::bytes& modelBytes, const SessionOptions& options);
 
         std::unordered_map<std::string, TensorInfo> GetInputInfo() const;
         std::unordered_map<std::string, TensorInfo> GetOutputInfo() const;
         std::unordered_map<std::string, pybind11::array> Run(
-            const std::unordered_map<std::string, pybind11::array>& inputs) const;
+            const std::unordered_map<std::string, pybind11::array>& inputs,
+            const std::optional<std::reference_wrapper<RunOptions>>& runOptions) const;
     };
 
     class Value : public OrtTypeWrapper<OrtValue, Value>

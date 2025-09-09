@@ -6,6 +6,10 @@
 #include <windows.h>
 #endif /** _WIN32 */
 
+#if defined(__linux__) || defined(__APPLE__)
+#include <dlfcn.h>
+#endif /** __linux__ || __APPLE__ */
+
 #ifdef _WIN32
 static std::wstring StringToWString(const std::string& str)
 {
@@ -167,6 +171,8 @@ Pyort::Env::Env()
 {
     Pyort::Status status = GetApi()->CreateEnv(ORT_LOGGING_LEVEL_WARNING, "Pyort", &_ptr);
     status.Check();
+    /** Return value ignored */
+    GetApi()->DisableTelemetryEvents(_ptr);
 }
 
 void Pyort::Env::ReleaseOrtType(OrtEnv* ptr)
@@ -265,6 +271,30 @@ pybind11::bytes Pyort::ModelCompilationOptions::CompileModelToBuffer()
     return result;
 }
 
+/** LibraryHandle */
+
+void Pyort::LibraryHandle::ReleaseOrtType(void* ptr)
+{
+    /**
+     * For whatever reason, onnxruntime lefts the handler to the user to free
+     *     w/o a unified API.
+     * So we have to do it ourselves here.
+     */
+#ifdef _WIN32
+    HMODULE hModule = static_cast<HMODULE>(ptr);
+    if (hModule)
+    {
+        FreeLibrary(hModule);
+    }
+#endif /** _WIN32 */
+#if defined(__linux__) || defined(__APPLE__)
+    if (ptr)
+    {
+        dlclose(ptr);
+    }
+#endif /** __linux__ || __APPLE__ */
+}
+
 /** SessionOptions */
 
 Pyort::SessionOptions::SessionOptions()
@@ -277,6 +307,104 @@ Pyort::SessionOptions::SessionOptions()
 void Pyort::SessionOptions::ReleaseOrtType(OrtSessionOptions* ptr)
 {
     GetApi()->ReleaseSessionOptions(ptr);
+}
+
+void Pyort::SessionOptions::SetOptimizedModelFilePath(const std::string& path)
+{
+    Pyort::Status status = GetApi()->SetOptimizedModelFilePath(
+        _ptr, StringToOrtString(path).c_str());
+    status.Check();
+}
+
+void Pyort::SessionOptions::SetSessionExecutionMode(ExecutionMode mode)
+{
+    Pyort::Status status = GetApi()->SetSessionExecutionMode(_ptr, mode);
+    status.Check();
+}
+
+void Pyort::SessionOptions::EnableProfiling(const std::string& profileFilePrefix)
+{
+    Pyort::Status status = GetApi()->EnableProfiling(
+        _ptr, StringToOrtString(profileFilePrefix).c_str());
+    status.Check();
+}
+
+void Pyort::SessionOptions::DisableProfiling()
+{
+    Pyort::Status status = GetApi()->DisableProfiling(_ptr);
+    status.Check();
+}
+
+void Pyort::SessionOptions::EnableMemPattern()
+{
+    Pyort::Status status = GetApi()->EnableMemPattern(_ptr);
+    status.Check();
+}
+
+void Pyort::SessionOptions::DisableMemPattern()
+{
+    Pyort::Status status = GetApi()->DisableMemPattern(_ptr);
+    status.Check();
+}
+
+void Pyort::SessionOptions::EnableCpuMemArena()
+{
+    Pyort::Status status = GetApi()->EnableCpuMemArena(_ptr);
+    status.Check();
+}
+
+void Pyort::SessionOptions::DisableCpuMemArena()
+{
+    Pyort::Status status = GetApi()->DisableCpuMemArena(_ptr);
+    status.Check();
+}
+
+void Pyort::SessionOptions::SetSessionLogId(const std::string& logId)
+{
+    Pyort::Status status = GetApi()->SetSessionLogId(_ptr, logId.c_str());
+    status.Check();
+}
+
+void Pyort::SessionOptions::SetSessionLogVerbosityLevel(int level)
+{
+    Pyort::Status status = GetApi()->SetSessionLogVerbosityLevel(_ptr, level);
+    status.Check();
+}
+
+void Pyort::SessionOptions::SetSessionLogSeverityLevel(int level)
+{
+    Pyort::Status status = GetApi()->SetSessionLogSeverityLevel(_ptr, level);
+    status.Check();
+}
+
+void Pyort::SessionOptions::SetSessionGraphOptimizationLevel(
+    GraphOptimizationLevel level)
+{
+    Pyort::Status status = GetApi()->SetSessionGraphOptimizationLevel(_ptr, level);
+    status.Check();
+}
+
+void Pyort::SessionOptions::SetIntraOpNumThreads(int intraOpNumThreads)
+{
+    Pyort::Status status = GetApi()->SetIntraOpNumThreads(
+        _ptr, intraOpNumThreads);
+    status.Check();
+}
+
+void Pyort::SessionOptions::SetInterOpNumThreads(int interOpNumThreads)
+{
+    Pyort::Status status = GetApi()->SetInterOpNumThreads(
+        _ptr, interOpNumThreads);
+    status.Check();
+}
+
+Pyort::LibraryHandle Pyort::SessionOptions::RegisterCustomOpsLibrary(const std::string& libraryPath)
+{
+    void* handle = nullptr;
+    Pyort::Status status = GetApi()->RegisterCustomOpsLibrary(
+        _ptr, libraryPath.c_str(), &handle);
+    status.Check();
+    return LibraryHandle{ handle };
 }
 
 void Pyort::SessionOptions::AppendExecutionProvider_V2(
@@ -430,6 +558,74 @@ Pyort::TensorInfo::TensorInfo(const TypeInfo& typeInfo)
     dtype = Pyort::Value::OrtTypeToNpType(type);
 }
 
+/** RunOptions */
+
+void Pyort::RunOptions::ReleaseOrtType(OrtRunOptions* ptr)
+{
+    GetApi()->ReleaseRunOptions(ptr);
+}
+
+Pyort::RunOptions::RunOptions()
+    : OrtTypeWrapper<OrtRunOptions, RunOptions>(nullptr)
+{
+    Pyort::Status status = GetApi()->CreateRunOptions(&_ptr);
+    status.Check();
+}
+
+void Pyort::RunOptions::SetRunLogVerbosityLevel(int level)
+{
+    Pyort::Status status = GetApi()->RunOptionsSetRunLogVerbosityLevel(_ptr, level);
+    status.Check();
+}
+
+int Pyort::RunOptions::GetRunLogVerbosityLevel() const
+{
+    int level = 0;
+    Pyort::Status status = GetApi()->RunOptionsGetRunLogVerbosityLevel(_ptr, &level);
+    status.Check();
+    return level;
+}
+
+void Pyort::RunOptions::SetRunLogSeverityLevel(int level)
+{
+    Pyort::Status status = GetApi()->RunOptionsSetRunLogSeverityLevel(_ptr, level);
+    status.Check();
+}
+
+int Pyort::RunOptions::GetRunLogSeverityLevel() const
+{
+    int level = 0;
+    Pyort::Status status = GetApi()->RunOptionsGetRunLogSeverityLevel(_ptr, &level);
+    status.Check();
+    return level;
+}
+
+void Pyort::RunOptions::SetRunTag(const std::string& tag)
+{
+    Pyort::Status status = GetApi()->RunOptionsSetRunTag(_ptr, tag.c_str());
+    status.Check();
+}
+
+std::string Pyort::RunOptions::GetRunTag() const
+{
+    const char* tag = nullptr;
+    Pyort::Status status = GetApi()->RunOptionsGetRunTag(_ptr, &tag);
+    status.Check();
+    return tag ? tag : "";
+}
+
+void Pyort::RunOptions::SetTerminate()
+{
+    Pyort::Status status = GetApi()->RunOptionsSetTerminate(_ptr);
+    status.Check();
+}
+
+void Pyort::RunOptions::UnsetTerminate()
+{
+    Pyort::Status status = GetApi()->RunOptionsUnsetTerminate(_ptr);
+    status.Check();
+}
+
 /** Session */
 
 Pyort::Session::Session(const std::string& modelPath, const SessionOptions& options)
@@ -439,6 +635,21 @@ Pyort::Session::Session(const std::string& modelPath, const SessionOptions& opti
     Pyort::Status status = GetApi()->CreateSession(
         *Pyort::Env::GetSingleton(),
         StringToOrtString(modelPath).c_str(),
+        options,
+        &session);
+    status.Check();
+    _ptr = session;
+}
+
+Pyort::Session::Session(const pybind11::bytes& modelBytes, const SessionOptions& options)
+    : OrtTypeWrapper<OrtSession, Session>(nullptr)
+{
+    auto bytesView = static_cast<std::string_view>(modelBytes);
+    OrtSession* session = nullptr;
+    Pyort::Status status = GetApi()->CreateSessionFromArray(
+        *Pyort::Env::GetSingleton(),
+        reinterpret_cast<const void*>(bytesView.data()),
+        bytesView.size(),
         options,
         &session);
     status.Check();
@@ -499,7 +710,8 @@ std::unordered_map<std::string, Pyort::TensorInfo> Pyort::Session::GetOutputInfo
 }
 
 std::unordered_map<std::string, pybind11::array> Pyort::Session::Run(
-    const std::unordered_map<std::string, pybind11::array>& inputs) const
+    const std::unordered_map<std::string, pybind11::array>& inputs,
+    const std::optional<std::reference_wrapper<Pyort::RunOptions>>& runOptions) const
 {
     /** Create input values */
     std::vector<const char*> inputNamesView;
@@ -530,7 +742,7 @@ std::unordered_map<std::string, pybind11::array> Pyort::Session::Run(
     }
     /** Run the session */
     Pyort::Status status = GetApi()->Run(
-        _ptr, nullptr,
+        _ptr, runOptions.has_value() ? runOptions.value().get() : nullptr,
         inputNamesView.data(), inputValuesView.data(), inputs.size(),
         outputNamesView.data(), outputInfo.size(), outputValues.data());
     status.Check();
