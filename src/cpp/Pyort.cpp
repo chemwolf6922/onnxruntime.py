@@ -1,5 +1,6 @@
 #include "Pyort.h"
 #include <cstring>
+#include <string>
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
@@ -216,13 +217,12 @@ void Pyort::ModelCompilationOptions::SetInputModelPath(const std::string& path)
     status.Check();
 }
 
-void Pyort::ModelCompilationOptions::SetInputModelFromBuffer(const pybind11::bytes& modelBytes)
+void Pyort::ModelCompilationOptions::SetInputModelFromBuffer(const nanobind::bytes& modelBytes)
 {
-    auto bufferView = static_cast<std::string_view>(modelBytes);
     Pyort::Status status = GetApi()->GetCompileApi()->ModelCompilationOptions_SetInputModelFromBuffer(
         _ptr,
-        reinterpret_cast<const void*>(bufferView.data()),
-        bufferView.size());
+        modelBytes.data(),
+        modelBytes.size());
     status.Check();
 }
 
@@ -251,7 +251,7 @@ void Pyort::ModelCompilationOptions::CompileModelToFile(const std::string& path)
     status.Check();
 }
 
-pybind11::bytes Pyort::ModelCompilationOptions::CompileModelToBuffer()
+nanobind::bytes Pyort::ModelCompilationOptions::CompileModelToBuffer()
 {
     void* buffer = nullptr;
     size_t bufferSize = 0;
@@ -260,7 +260,7 @@ pybind11::bytes Pyort::ModelCompilationOptions::CompileModelToBuffer()
     status.Check();
     status = GetApi()->GetCompileApi()->CompileModel(*Env::GetSingleton(), _ptr);
     status.Check();
-    pybind11::bytes result{ static_cast<const char*>(buffer), bufferSize };
+    nanobind::bytes result{ static_cast<const char*>(buffer), bufferSize };
     GetAllocator()->Free(GetAllocator(), buffer);
     return result;
 }
@@ -315,8 +315,13 @@ void Pyort::SessionOptions::SetEpSelectionPolicy(OrtExecutionProviderDevicePolic
     status.Check();
 }
 
-void Pyort::SessionOptions::SetEpSelectionPolicyDelegate(pybind11::function delegate)
+void Pyort::SessionOptions::SetEpSelectionPolicyDelegate(const EpSelectionPolicyDelegate& delegate)
 {
+    if (delegate == nullptr)
+    {
+        throw std::invalid_argument("delegate cannot be null");
+    }
+    _delegate = delegate;
     ::EpSelectionDelegate delegateWrapper = [](
         const OrtEpDevice** ep_devices,
         size_t num_devices,
@@ -329,8 +334,8 @@ void Pyort::SessionOptions::SetEpSelectionPolicyDelegate(pybind11::function dele
     ) -> OrtStatus* {
         try
         {
-            PyObject* raw = static_cast<PyObject*>(state);
-            pybind11::function delegate = pybind11::reinterpret_borrow<pybind11::function>(raw);
+            Pyort::SessionOptions* options = static_cast<Pyort::SessionOptions*>(state);
+            auto& delegate = options->_delegate;
             std::vector<Pyort::EpDevice> devices;
             devices.reserve(num_devices);
             for (size_t i = 0; i < num_devices; ++i)
@@ -339,17 +344,11 @@ void Pyort::SessionOptions::SetEpSelectionPolicyDelegate(pybind11::function dele
             }
             auto modelMetadata = Pyort::KeyValuePairsToMap(model_metadata);
             auto runtimeMetadata = Pyort::KeyValuePairsToMap(runtime_metadata);
-            pybind11::object result = pybind11::none();
+            std::vector<Pyort::EpDevice> selectedDevices{};
             {
-                pybind11::gil_scoped_acquire acquire;
-                result = delegate(devices, modelMetadata, runtimeMetadata, max_selected);
+                nanobind::gil_scoped_acquire acquire;
+                selectedDevices = delegate(devices, modelMetadata, runtimeMetadata, max_selected);
             }
-            if (result.is_none())
-            {
-                *num_selected = 0;
-                return nullptr;
-            }
-            std::vector<Pyort::EpDevice> selectedDevices = result.cast<std::vector<Pyort::EpDevice>>();
             if (selectedDevices.size() > max_selected)
             {
                 throw std::runtime_error("The number of selected devices exceeds max_selected");
@@ -373,8 +372,8 @@ void Pyort::SessionOptions::SetEpSelectionPolicyDelegate(pybind11::function dele
     Pyort::Status status = GetApi()->SessionOptionsSetEpSelectionPolicyDelegate(
         _ptr,
         delegateWrapper,
-        /** If the python function gets deleted somehow, this will cause an invalid access. */
-        delegate.ptr());
+        /** If the session_options gets deleted somehow, this will cause an invalid access. */
+        this);
     status.Check();
 }
 
@@ -498,8 +497,8 @@ std::unordered_map<std::string, Pyort::TensorInfo> Pyort::Session::GetOutputInfo
     return outputInfo;
 }
 
-std::unordered_map<std::string, pybind11::array> Pyort::Session::Run(
-    const std::unordered_map<std::string, pybind11::array>& inputs) const
+std::unordered_map<std::string, Pyort::NpArray> Pyort::Session::Run(
+    const std::unordered_map<std::string, Pyort::NpArray>& inputs) const
 {
     /** Create input values */
     std::vector<const char*> inputNamesView;
@@ -540,7 +539,7 @@ std::unordered_map<std::string, pybind11::array> Pyort::Session::Run(
         /** safe guard the raw values first. */
         outputValuesWrapper.emplace_back(value);
     }
-    std::unordered_map<std::string, pybind11::array> outputs;
+    std::unordered_map<std::string, NpArray> outputs;
     size_t i = 0;
     for (const auto& pair : outputInfo)
     {
@@ -551,77 +550,107 @@ std::unordered_map<std::string, pybind11::array> Pyort::Session::Run(
 
 /** Value */
 
-Pyort::Value::Value(const pybind11::array& npArray)
-    : OrtTypeWrapper<OrtValue, Value>(nullptr), _npArray(npArray)
+Pyort::Value::State::~State()
 {
-    auto type = NpTypeToOrtType(npArray.dtype());
-    std::vector<int64_t> shape;
-    auto ndim = _npArray->ndim();
-    shape.reserve(ndim);
+    if (ortValue != nullptr)
+    {
+        GetApi()->ReleaseValue(ortValue);
+    }
+}
+
+Pyort::Value::Value(OrtValue* ptr)
+{
+    if (ptr == nullptr)
+    {
+        /** Create an empty value */
+        return;
+    }
+    _state->ortValue = ptr;
+    auto npType = OrtTypeToNpType(GetType());
+    auto ortShape = GetShape();
+    std::vector<size_t> npShape(ortShape.begin(), ortShape.end());
+    auto sharedStateHeldByNpArray = new std::shared_ptr<State>(_state);
+    nanobind::capsule owner(sharedStateHeldByNpArray, [](void* p) noexcept {
+        delete static_cast<std::shared_ptr<std::vector<uint8_t>>*>(p);
+    });
+    _state->npArray = NpArray(
+        GetData(),
+        npShape.size(),
+        npShape.data(),
+        owner,
+        nullptr,
+        npType);
+}
+
+Pyort::Value::Value(const NpArray& npArray)
+{
+    /** npArray (indirectly) holds the data, the Value holds a reference. */
+    auto ortType = NpTypeToOrtType(npArray.dtype());
+    std::vector<int64_t> ortShape;
+    auto ndim = npArray.ndim();
+    ortShape.reserve(ndim);
     for (int i = 0; i < ndim; i++)
     {
-        shape.push_back(_npArray->shape(i));
+        ortShape.push_back(npArray.shape(i));
     }
     Pyort::MemoryInfo memInfo{};
     Pyort::Status status = GetApi()->CreateTensorWithDataAsOrtValue(
         memInfo,
-        _npArray->mutable_data(),
-        _npArray->nbytes(),
-        shape.data(),
-        shape.size(),
-        type,
-        &_ptr);
+        npArray.data(),
+        npArray.nbytes(),
+        ortShape.data(),
+        ortShape.size(),
+        ortType,
+        &_state->ortValue);
     status.Check();
 }
 
 Pyort::Value::Value(const std::vector<int64_t>& ortShape, ONNXTensorElementDataType ortType)
-    : OrtTypeWrapper<OrtValue, Value>(nullptr)
 {
-    auto npType = OrtTypeToNpType(ortType);
-    pybind11::array npArray(npType, ortShape);
-    _npArray = npArray;
-    Pyort::MemoryInfo memInfo{};
-    Pyort::Status status = GetApi()->CreateTensorWithDataAsOrtValue(
-        memInfo,
-        _npArray->mutable_data(),
-        _npArray->nbytes(),
+    Pyort::Status status = GetApi()->CreateTensorAsOrtValue(
+        GetAllocator(),
         ortShape.data(),
         ortShape.size(),
         ortType,
-        &_ptr);
+        &_state->ortValue);
     status.Check();
-}
-
-void Pyort::Value::ReleaseOrtType(OrtValue* ptr)
-{
-    GetApi()->ReleaseValue(ptr);
-}
-
-Pyort::Value::operator pybind11::array()
-{
-    if (_npArray.has_value())
-    {
-        return *_npArray;
-    }
-    /** Create a new np array from _ptr */
-    auto shape = GetShape();
-    auto ortType = GetType();
     auto npType = OrtTypeToNpType(ortType);
-    _npArray = pybind11::array(npType, shape);
-    void* data = GetData();
-    auto size = GetSize();
-    memcpy(_npArray->mutable_data(), data, size);
-    return *_npArray;
+    std::vector<size_t> npShape(ortShape.begin(), ortShape.end());
+    auto sharedStateHeldByNpArray = new std::shared_ptr<State>(_state);
+    nanobind::capsule owner(sharedStateHeldByNpArray, [](void* p) noexcept {
+        delete static_cast<std::shared_ptr<std::vector<uint8_t>>*>(p);
+    });
+    _state->npArray = NpArray(
+        GetData(),
+        npShape.size(),
+        npShape.data(),
+        owner,
+        nullptr,
+        npType);
+}
+
+Pyort::Value::operator Pyort::NpArray() const
+{
+    if (!_state->npArray.has_value())
+    {
+        throw std::runtime_error("Value does not hold a numpy array");
+    }
+    return *(_state->npArray);
+}
+
+Pyort::Value::operator OrtValue*() const
+{
+    return _state->ortValue;
 }
 
 ONNXTensorElementDataType Pyort::Value::GetType() const
 {
-    if (_ptr == nullptr)
+    if (_state->ortValue == nullptr)
     {
         throw std::runtime_error("Value is empty");
     }
     OrtTensorTypeAndShapeInfo *info = nullptr;
-    Pyort::Status status = GetApi()->GetTensorTypeAndShape(_ptr, &info);
+    Pyort::Status status = GetApi()->GetTensorTypeAndShape(_state->ortValue, &info);
     status.Check();
     ONNXTensorElementDataType type;
     status = GetApi()->GetTensorElementType(info, &type);
@@ -631,12 +660,12 @@ ONNXTensorElementDataType Pyort::Value::GetType() const
 
 std::vector<int64_t> Pyort::Value::GetShape() const
 {
-    if (_ptr == nullptr)
+    if (_state->ortValue == nullptr)
     {
         throw std::runtime_error("Value is empty");
     }
     OrtTensorTypeAndShapeInfo *info = nullptr;
-    Pyort::Status status = GetApi()->GetTensorTypeAndShape(_ptr, &info);
+    Pyort::Status status = GetApi()->GetTensorTypeAndShape(_state->ortValue, &info);
     status.Check();
     size_t dimCount = 0;
     status = GetApi()->GetDimensionsCount(info, &dimCount);
@@ -649,7 +678,7 @@ std::vector<int64_t> Pyort::Value::GetShape() const
 
 size_t Pyort::Value::GetSize() const
 {
-    if (_ptr == nullptr)
+    if (_state->ortValue == nullptr)
     {
         throw std::runtime_error("Value is empty");
     }
@@ -710,12 +739,12 @@ size_t Pyort::Value::GetSize() const
 
 void* Pyort::Value::GetData() const
 {
-    if (_ptr == nullptr)
+    if (_state->ortValue == nullptr)
     {
         throw std::runtime_error("Value is empty");
     }
     void* data = nullptr;
-    Pyort::Status status = GetApi()->GetTensorMutableData(_ptr, &data);
+    Pyort::Status status = GetApi()->GetTensorMutableData(_state->ortValue, &data);
     if (data == nullptr)
     {
         throw std::runtime_error("Failed to get data from OrtValue.");
@@ -723,67 +752,117 @@ void* Pyort::Value::GetData() const
     return data;
 }
 
-ONNXTensorElementDataType Pyort::Value::NpTypeToOrtType(const pybind11::dtype& npType)
+ONNXTensorElementDataType Pyort::Value::NpTypeToOrtType(const nanobind::dlpack::dtype& npType)
 {
-    switch (npType.num()) {
-        case pybind11::detail::npy_api::constants::NPY_BOOL_:
-            return ONNX_TENSOR_ELEMENT_DATA_TYPE_BOOL;
-        case pybind11::detail::npy_api::constants::NPY_BYTE_:
-            return ONNX_TENSOR_ELEMENT_DATA_TYPE_INT8;
-        case pybind11::detail::npy_api::constants::NPY_UBYTE_:
-            return ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT8;
-        case pybind11::detail::npy_api::constants::NPY_SHORT_:
-            return ONNX_TENSOR_ELEMENT_DATA_TYPE_INT16;
-        case pybind11::detail::npy_api::constants::NPY_USHORT_:
-            return ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT16;
-        case pybind11::detail::npy_api::constants::NPY_INT_:
-        case pybind11::detail::npy_api::constants::NPY_LONG_:
-            return ONNX_TENSOR_ELEMENT_DATA_TYPE_INT32;
-        case pybind11::detail::npy_api::constants::NPY_UINT_:
-        case pybind11::detail::npy_api::constants::NPY_ULONG_:
-            return ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT32;
-        case pybind11::detail::npy_api::constants::NPY_LONGLONG_:
-            return ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64;
-        case pybind11::detail::npy_api::constants::NPY_ULONGLONG_:
-            return ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT64;
-        case pybind11::detail::npy_api::constants::NPY_FLOAT_:
-            return ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT;
-        case pybind11::detail::npy_api::constants::NPY_DOUBLE_:
-            return ONNX_TENSOR_ELEMENT_DATA_TYPE_DOUBLE;
-        case 23: /** float16. Not defined in pybind11's included numpy header. */
-            return ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT16;
+    if (npType == nanobind::dtype<bool>())
+    {
+        return ONNX_TENSOR_ELEMENT_DATA_TYPE_BOOL;
     }
-    throw std::runtime_error("Unsupported NumPy data type: " + std::to_string(npType.num()));
+    else if (npType == nanobind::dtype<int8_t>())
+    {
+        return ONNX_TENSOR_ELEMENT_DATA_TYPE_INT8;
+    }
+    else if (npType == nanobind::dtype<uint8_t>())
+    {
+        return ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT8;
+    }
+    else if (npType == nanobind::dtype<int16_t>())
+    {
+        return ONNX_TENSOR_ELEMENT_DATA_TYPE_INT16;
+    }
+    else if (npType == nanobind::dtype<uint16_t>())
+    {
+        return ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT16;
+    }
+    else if (npType == nanobind::dtype<int32_t>())
+    {
+        return ONNX_TENSOR_ELEMENT_DATA_TYPE_INT32;
+    }
+    else if (npType == nanobind::dtype<uint32_t>())
+    {
+        return ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT32;
+    }
+    else if (npType == nanobind::dtype<int64_t>())
+    {
+        return ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64;
+    }
+    else if (npType == nanobind::dtype<uint64_t>())
+    {
+        return ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT64;
+    }
+    else if (npType == nanobind::dtype<float>())
+    {
+        return ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT;
+    }
+    else if (npType == nanobind::dtype<double>())
+    {
+        return ONNX_TENSOR_ELEMENT_DATA_TYPE_DOUBLE;
+    }
+    else if (npType.code == static_cast<uint8_t>(nanobind::dlpack::dtype_code::Float) && npType.bits == 16 && npType.lanes == 1)
+    {
+        return ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT16;
+    }
+    throw std::runtime_error("Unsupported NumPy data type: " + std::to_string(npType.code) + ", " + std::to_string(npType.bits) + ", " + std::to_string(npType.lanes));
 }
 
-pybind11::dtype Pyort::Value::OrtTypeToNpType(ONNXTensorElementDataType ortType)
+nanobind::dlpack::dtype Pyort::Value::OrtTypeToNpType(ONNXTensorElementDataType ortType)
 {
     switch (ortType) {
         case ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT:
-            return pybind11::dtype::of<float>();
+            return nanobind::dtype<float>();
         case ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT8:
-            return pybind11::dtype::of<uint8_t>();
+            return nanobind::dtype<uint8_t>();
         case ONNX_TENSOR_ELEMENT_DATA_TYPE_INT8:
-            return pybind11::dtype::of<int8_t>();
+            return nanobind::dtype<int8_t>();
         case ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT16:
-            return pybind11::dtype::of<uint16_t>();
+            return nanobind::dtype<uint16_t>();
         case ONNX_TENSOR_ELEMENT_DATA_TYPE_INT16:
-            return pybind11::dtype::of<int16_t>();
+            return nanobind::dtype<int16_t>();
         case ONNX_TENSOR_ELEMENT_DATA_TYPE_INT32:
-            return pybind11::dtype::of<int32_t>();
+            return nanobind::dtype<int32_t>();
         case ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64:
-            return pybind11::dtype::of<int64_t>();
+            return nanobind::dtype<int64_t>();
         case ONNX_TENSOR_ELEMENT_DATA_TYPE_BOOL:
-            return pybind11::dtype::of<bool>();
+            return nanobind::dtype<bool>();
         case ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT16:
-            /** 23: numpy float 16 */
-            return pybind11::dtype(23);
+            return { static_cast<uint8_t>(nanobind::dlpack::dtype_code::Float), 16, 1 };
         case ONNX_TENSOR_ELEMENT_DATA_TYPE_DOUBLE:
-            return pybind11::dtype::of<double>();
+            return nanobind::dtype<double>();
         case ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT32:
-            return pybind11::dtype::of<uint32_t>();
+            return nanobind::dtype<uint32_t>();
         case ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT64:
-            return pybind11::dtype::of<uint64_t>();
+            return nanobind::dtype<uint64_t>();
+    }
+    throw std::runtime_error("Unsupported ONNX tensor element data type: " + std::to_string(ortType));
+}
+
+size_t Pyort::Value::GetSizeOfOrtType(ONNXTensorElementDataType ortType)
+{
+    switch (ortType) {
+        case ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT:
+            return sizeof(float);
+        case ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT8:
+            return sizeof(uint8_t);
+        case ONNX_TENSOR_ELEMENT_DATA_TYPE_INT8:
+            return sizeof(int8_t);
+        case ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT16:
+            return sizeof(uint16_t);
+        case ONNX_TENSOR_ELEMENT_DATA_TYPE_INT16:
+            return sizeof(int16_t);
+        case ONNX_TENSOR_ELEMENT_DATA_TYPE_INT32:
+            return sizeof(int32_t);
+        case ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64:
+            return sizeof(int64_t);
+        case ONNX_TENSOR_ELEMENT_DATA_TYPE_BOOL:
+            return sizeof(bool);
+        case ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT16:
+            return 2;
+        case ONNX_TENSOR_ELEMENT_DATA_TYPE_DOUBLE:
+            return sizeof(double);
+        case ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT32:
+            return sizeof(uint32_t);
+        case ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT64:
+            return sizeof(uint64_t);
     }
     throw std::runtime_error("Unsupported ONNX tensor element data type: " + std::to_string(ortType));
 }

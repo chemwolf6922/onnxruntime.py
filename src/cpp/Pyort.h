@@ -1,6 +1,5 @@
-#include <pybind11/pybind11.h>
-#include <pybind11/numpy.h>
-#include <pybind11/stl.h>
+#include <nanobind/nanobind.h>
+#include <nanobind/ndarray.h>
 #include <memory>
 #include <unordered_map>
 #include <vector>
@@ -12,6 +11,8 @@
 
 namespace Pyort
 {
+    using NpArray = nanobind::ndarray<nanobind::numpy, nanobind::device::cpu, nanobind::c_contig>;
+
     const OrtApi* GetApi();
     OrtAllocator* GetAllocator();
     std::unordered_map<std::string, std::string> KeyValuePairsToMap(const OrtKeyValuePairs* pairs);
@@ -114,12 +115,12 @@ namespace Pyort
         static void ReleaseOrtType(OrtModelCompilationOptions* ptr);
         using OrtTypeWrapper::OrtTypeWrapper;
         void SetInputModelPath(const std::string& path);
-        void SetInputModelFromBuffer(const pybind11::bytes& modelBytes);
+        void SetInputModelFromBuffer(const nanobind::bytes& modelBytes);
         void SetOutputModelExternalInitializersFile(
             const std::string& path, size_t externalInitializerSizeThreshold);
         void SetEpContextEmbedMode(bool embedContext);
         void CompileModelToFile(const std::string& path);
-        pybind11::bytes CompileModelToBuffer();
+        nanobind::bytes CompileModelToBuffer();
     };
 
     class SessionOptions : public OrtTypeWrapper<OrtSessionOptions, SessionOptions>
@@ -132,8 +133,16 @@ namespace Pyort
             const std::vector<EpDevice>& epDevices,
             const std::unordered_map<std::string, std::string>& epOptions);
         void SetEpSelectionPolicy(OrtExecutionProviderDevicePolicy policy);
-        void SetEpSelectionPolicyDelegate(pybind11::function delegate);
+        using EpSelectionPolicyDelegate = std::function<
+            std::vector<EpDevice>(
+                const std::vector<EpDevice>& epDevices,
+                const std::unordered_map<std::string, std::string>& modelMetadata,
+                const std::unordered_map<std::string, std::string>& runtimeMetadata,
+                size_t max_selected)>;
+        void SetEpSelectionPolicyDelegate(const EpSelectionPolicyDelegate& delegate);
         ModelCompilationOptions CreateModelCompilationOptions() const;
+    private:
+        EpSelectionPolicyDelegate _delegate { nullptr };
     };
 
     class TypeInfo : public OrtTypeWrapper<OrtTypeInfo, TypeInfo>
@@ -154,7 +163,7 @@ namespace Pyort
     {
         std::vector<int64_t> shape;
         std::vector<std::string> dimensions;
-        pybind11::dtype dtype;
+        nanobind::dlpack::dtype dtype;
 
         TensorInfo() = default;
         TensorInfo(const TypeInfo& typeInfo);
@@ -168,27 +177,48 @@ namespace Pyort
 
         std::unordered_map<std::string, TensorInfo> GetInputInfo() const;
         std::unordered_map<std::string, TensorInfo> GetOutputInfo() const;
-        std::unordered_map<std::string, pybind11::array> Run(
-            const std::unordered_map<std::string, pybind11::array>& inputs) const;
+        std::unordered_map<std::string, NpArray> Run(
+            const std::unordered_map<std::string, NpArray>& inputs) const;
     };
 
-    class Value : public OrtTypeWrapper<OrtValue, Value>
+    class Value
     {
     public:
-        static ONNXTensorElementDataType NpTypeToOrtType(const pybind11::dtype& npType);
-        static pybind11::dtype OrtTypeToNpType(ONNXTensorElementDataType type);
-        static void ReleaseOrtType(OrtValue* ptr);
-        using OrtTypeWrapper::OrtTypeWrapper;
-        Value(const pybind11::array& npArray);
+        static ONNXTensorElementDataType NpTypeToOrtType(const nanobind::dlpack::dtype& npType);
+        static nanobind::dlpack::dtype OrtTypeToNpType(ONNXTensorElementDataType type);
+        static size_t GetSizeOfOrtType(ONNXTensorElementDataType type);
+
+        Value(OrtValue* ptr);
+        Value(const NpArray& NpArray);
         Value(const std::vector<int64_t>& shape, ONNXTensorElementDataType type);
 
-        operator pybind11::array();
+        operator NpArray() const;
+        operator OrtValue*() const;
         ONNXTensorElementDataType GetType() const;
         std::vector<int64_t> GetShape() const;
         size_t GetSize() const;
         void* GetData() const;
     private:
-        std::optional<pybind11::array> _npArray{ std::nullopt };
+        struct State
+        {
+            /** 
+             * Stores the data when the value is created by ort or binding code.
+             * A view / reference to the data if not.
+             */
+            OrtValue* ortValue{ nullptr };
+            /** 
+             * Stores the data when the value is created by python.
+             * A view / reference to the data if not.
+             */
+            std::optional<NpArray> npArray { std::nullopt };
+            State() = default;
+            State(const State&) = delete;
+            State& operator=(const State&) = delete;
+            State(State&&) noexcept = delete;
+            State& operator=(State&&) noexcept = delete;
+            ~State();
+        };
+        std::shared_ptr<State> _state{ std::make_shared<State>() };
     };
 
     class MemoryInfo : public OrtTypeWrapper<OrtMemoryInfo, MemoryInfo>
