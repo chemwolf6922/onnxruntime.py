@@ -102,7 +102,10 @@ set_ep_selection_policy_delegate(delegate: Callable[[List[EpDevice], Dict[str, s
     nanobind::class_<Pyort::TensorInfo>(m, "TensorInfo")
         .def_ro("shape", &Pyort::TensorInfo::shape)
         .def_ro("dimensions", &Pyort::TensorInfo::dimensions)
-        .def_ro("dtype", &Pyort::TensorInfo::dtype);
+        .def_prop_ro("dtype",
+            [](const Pyort::TensorInfo &self) -> nanobind::object {
+                return Pyort::Value::NpTypeToPythonObject(self.dtype);
+            });
 
     nanobind::class_<Pyort::Session>(m, "Session")
         .def(nanobind::init<const std::string&, const Pyort::SessionOptions&>(),

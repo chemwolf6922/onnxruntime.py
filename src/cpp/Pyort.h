@@ -186,6 +186,7 @@ namespace Pyort
     public:
         static ONNXTensorElementDataType NpTypeToOrtType(const nanobind::dlpack::dtype& npType);
         static nanobind::dlpack::dtype OrtTypeToNpType(ONNXTensorElementDataType type);
+        static nanobind::object NpTypeToPythonObject(const nanobind::dlpack::dtype& npType);
         static size_t GetSizeOfOrtType(ONNXTensorElementDataType type);
 
         Value(OrtValue* ptr);

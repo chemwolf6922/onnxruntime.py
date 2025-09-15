@@ -1,6 +1,7 @@
 #include "Pyort.h"
 #include <cstring>
 #include <string>
+#include <map>
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
@@ -27,6 +28,14 @@ static std::wstring StringToWString(const std::string& str)
 #define StringToOrtString(str) (str)
 #endif /** _WIN32 */
 
+/** nanobind::dlpack::dtype modifications to be a map key */
+namespace nanobind::dlpack {
+    inline bool operator<(const dtype& a, const dtype& b) {
+        if (a.code != b.code) return a.code < b.code;
+        if (a.bits != b.bits) return a.bits < b.bits;
+        return a.lanes < b.lanes;
+    }
+}
 
 /** Global */
 
@@ -754,55 +763,28 @@ void* Pyort::Value::GetData() const
 
 ONNXTensorElementDataType Pyort::Value::NpTypeToOrtType(const nanobind::dlpack::dtype& npType)
 {
-    if (npType == nanobind::dtype<bool>())
+    static std::map<nanobind::dlpack::dtype, ONNXTensorElementDataType> typeMap{};
+    if (typeMap.empty())
     {
-        return ONNX_TENSOR_ELEMENT_DATA_TYPE_BOOL;
+        typeMap[nanobind::dtype<bool>()] = ONNX_TENSOR_ELEMENT_DATA_TYPE_BOOL;
+        typeMap[nanobind::dtype<int8_t>()] = ONNX_TENSOR_ELEMENT_DATA_TYPE_INT8;
+        typeMap[nanobind::dtype<uint8_t>()] = ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT8;
+        typeMap[nanobind::dtype<int16_t>()] = ONNX_TENSOR_ELEMENT_DATA_TYPE_INT16;
+        typeMap[nanobind::dtype<uint16_t>()] = ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT16;
+        typeMap[nanobind::dtype<int32_t>()] = ONNX_TENSOR_ELEMENT_DATA_TYPE_INT32;
+        typeMap[nanobind::dtype<uint32_t>()] = ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT32;
+        typeMap[nanobind::dtype<int64_t>()] = ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64;
+        typeMap[nanobind::dtype<uint64_t>()] = ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT64;
+        typeMap[nanobind::dtype<float>()] = ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT;
+        typeMap[nanobind::dtype<double>()] = ONNX_TENSOR_ELEMENT_DATA_TYPE_DOUBLE;
+        typeMap[{ static_cast<uint8_t>(nanobind::dlpack::dtype_code::Float), 16, 1 }] = ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT16;
     }
-    else if (npType == nanobind::dtype<int8_t>())
+    auto it = typeMap.find(npType);
+    if (it == typeMap.end())
     {
-        return ONNX_TENSOR_ELEMENT_DATA_TYPE_INT8;
+        throw std::runtime_error("Unsupported NumPy data type: " + std::to_string(npType.code) + ", " + std::to_string(npType.bits) + ", " + std::to_string(npType.lanes));
     }
-    else if (npType == nanobind::dtype<uint8_t>())
-    {
-        return ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT8;
-    }
-    else if (npType == nanobind::dtype<int16_t>())
-    {
-        return ONNX_TENSOR_ELEMENT_DATA_TYPE_INT16;
-    }
-    else if (npType == nanobind::dtype<uint16_t>())
-    {
-        return ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT16;
-    }
-    else if (npType == nanobind::dtype<int32_t>())
-    {
-        return ONNX_TENSOR_ELEMENT_DATA_TYPE_INT32;
-    }
-    else if (npType == nanobind::dtype<uint32_t>())
-    {
-        return ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT32;
-    }
-    else if (npType == nanobind::dtype<int64_t>())
-    {
-        return ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64;
-    }
-    else if (npType == nanobind::dtype<uint64_t>())
-    {
-        return ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT64;
-    }
-    else if (npType == nanobind::dtype<float>())
-    {
-        return ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT;
-    }
-    else if (npType == nanobind::dtype<double>())
-    {
-        return ONNX_TENSOR_ELEMENT_DATA_TYPE_DOUBLE;
-    }
-    else if (npType.code == static_cast<uint8_t>(nanobind::dlpack::dtype_code::Float) && npType.bits == 16 && npType.lanes == 1)
-    {
-        return ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT16;
-    }
-    throw std::runtime_error("Unsupported NumPy data type: " + std::to_string(npType.code) + ", " + std::to_string(npType.bits) + ", " + std::to_string(npType.lanes));
+    return it->second;
 }
 
 nanobind::dlpack::dtype Pyort::Value::OrtTypeToNpType(ONNXTensorElementDataType ortType)
@@ -834,6 +816,34 @@ nanobind::dlpack::dtype Pyort::Value::OrtTypeToNpType(ONNXTensorElementDataType 
             return nanobind::dtype<uint64_t>();
     }
     throw std::runtime_error("Unsupported ONNX tensor element data type: " + std::to_string(ortType));
+}
+
+nanobind::object Pyort::Value::NpTypeToPythonObject(const nanobind::dlpack::dtype& npType)
+{
+    static std::map<nanobind::dlpack::dtype, nanobind::object> typeMap{};
+    if (typeMap.empty())
+    {
+        auto np = nanobind::module_::import_("numpy");
+        auto dtype = np.attr("dtype");
+        typeMap[nanobind::dtype<bool>()] = dtype("bool");
+        typeMap[nanobind::dtype<int8_t>()] = dtype("int8");
+        typeMap[nanobind::dtype<uint8_t>()] = dtype("uint8");
+        typeMap[nanobind::dtype<int16_t>()] = dtype("int16");
+        typeMap[nanobind::dtype<uint16_t>()] = dtype("uint16");
+        typeMap[nanobind::dtype<int32_t>()] = dtype("int32");
+        typeMap[nanobind::dtype<uint32_t>()] = dtype("uint32");
+        typeMap[nanobind::dtype<int64_t>()] = dtype("int64");
+        typeMap[nanobind::dtype<uint64_t>()] = dtype("uint64");
+        typeMap[nanobind::dtype<float>()] = dtype("float32");
+        typeMap[nanobind::dtype<double>()] = dtype("float64");
+        typeMap[{ static_cast<uint8_t>(nanobind::dlpack::dtype_code::Float), 16, 1 }] = dtype("float16");
+    }
+    auto it = typeMap.find(npType);
+    if (it == typeMap.end())
+    {
+        throw std::runtime_error("Unsupported NumPy data type: " + std::to_string(npType.code) + ", " + std::to_string(npType.bits) + ", " + std::to_string(npType.lanes));
+    }
+    return it->second;
 }
 
 size_t Pyort::Value::GetSizeOfOrtType(ONNXTensorElementDataType ortType)
