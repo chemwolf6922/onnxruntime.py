@@ -127,6 +127,9 @@ namespace Pyort
     {
     public:
         static void ReleaseOrtType(OrtSessionOptions* ptr);
+        static int TpTraverse(PyObject* self, visitproc visit, void* arg) noexcept;
+        static int TpClear(PyObject* self) noexcept;
+
         SessionOptions();
         using OrtTypeWrapper::OrtTypeWrapper;
         void AppendExecutionProvider_V2(

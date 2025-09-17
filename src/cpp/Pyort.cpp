@@ -2,6 +2,7 @@
 #include <cstring>
 #include <string>
 #include <map>
+#include <nanobind/stl/function.h>
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
@@ -286,6 +287,46 @@ Pyort::SessionOptions::SessionOptions()
 void Pyort::SessionOptions::ReleaseOrtType(OrtSessionOptions* ptr)
 {
     GetApi()->ReleaseSessionOptions(ptr);
+}
+
+int Pyort::SessionOptions::TpTraverse(PyObject* self, visitproc visit, void* arg) noexcept
+{
+    try
+    {        
+        // On Python 3.9+, we must traverse the implicit dependency
+        // of an object on its associated type object.
+        #if PY_VERSION_HEX >= 0x03090000
+            Py_VISIT(Py_TYPE(self));
+        #endif
+
+        if (!nanobind::inst_ready(self))
+        {
+            return 0;
+        }
+        SessionOptions* options = nanobind::inst_ptr<SessionOptions>(self);
+        nanobind::handle handle = nanobind::find(options->_delegate);
+        Py_VISIT(handle.ptr());
+        return 0;
+    }
+    catch(...)
+    {
+        return -1;
+    }
+}
+
+int Pyort::SessionOptions::TpClear(PyObject* self) noexcept
+{
+    try
+    {
+        SessionOptions* options = nanobind::inst_ptr<SessionOptions>(self);
+        /** Break circular reference */
+        options->_delegate = nullptr;
+        return 0;
+    }
+    catch(...)
+    {
+        return -1;
+    }
 }
 
 void Pyort::SessionOptions::AppendExecutionProvider_V2(

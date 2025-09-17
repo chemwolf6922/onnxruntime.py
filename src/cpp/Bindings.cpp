@@ -18,6 +18,12 @@
 #define PYORT_VERSION "0.0"
 #endif
 
+static PyType_Slot sessionOptionsSlots[] = {
+    { Py_tp_traverse, (void*) &Pyort::SessionOptions::TpTraverse },
+    { Py_tp_clear, (void*) &Pyort::SessionOptions::TpClear },
+    { 0, nullptr }
+};
+
 NB_MODULE(_pyort, m) {
     m.doc() = "onnxruntime binding build upon C API.";
     m.attr("__version__") = PYORT_VERSION;
@@ -82,7 +88,7 @@ NB_MODULE(_pyort, m) {
             nanobind::arg("path"))
         .def("compile_model_to_buffer", &Pyort::ModelCompilationOptions::CompileModelToBuffer);
 
-    nanobind::class_<Pyort::SessionOptions>(m, "SessionOptions")
+    nanobind::class_<Pyort::SessionOptions>(m, "SessionOptions", nanobind::type_slots(sessionOptionsSlots))
         .def(nanobind::init<>())
         .def("append_execution_provider_v2",
             &Pyort::SessionOptions::AppendExecutionProvider_V2,
