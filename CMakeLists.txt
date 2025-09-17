@@ -60,15 +60,15 @@ target_link_libraries(_pyort PRIVATE
 
 target_compile_definitions(_pyort PRIVATE PYORT_VERSION="${PYORT_VERSION}")
 
-# if(BUILD_FOR_HOST)
-#   add_custom_command(TARGET _pyort POST_BUILD
-#     COMMAND python -m pybind11_stubgen _pyort --output-dir "$<TARGET_FILE_DIR:_pyort>"
-#     WORKING_DIRECTORY "$<TARGET_FILE_DIR:_pyort>"
-#     COMMENT "Generate .pyi file. This only works when building for the host."
-#   )
-# endif()
+nanobind_add_stub(
+  _pyort_stub
+  MODULE _pyort
+  OUTPUT _pyort.pyi
+  PYTHON_PATH $<TARGET_FILE_DIR:_pyort>
+  DEPENDS _pyort
+)
 
-add_custom_command(TARGET _pyort POST_BUILD
+add_custom_command(TARGET _pyort_stub POST_BUILD
   COMMAND python "${CMAKE_SOURCE_DIR}/pack_wheel.py" -b "$<CONFIG>"
   WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
   COMMENT "Packing wheel after build"

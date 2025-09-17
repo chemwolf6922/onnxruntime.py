@@ -99,10 +99,7 @@ NB_MODULE(_pyort, m) {
             nanobind::arg("policy"))
         .def("set_ep_selection_policy_delegate",
             &Pyort::SessionOptions::SetEpSelectionPolicyDelegate,
-            nanobind::arg("delegate"),
-            R"pbdoc(
-set_ep_selection_policy_delegate(delegate: Callable[[List[EpDevice], Dict[str, str], Dict[str, str], int]])
-            )pbdoc")
+            nanobind::arg("delegate"))
         .def("create_model_compilation_options", &Pyort::SessionOptions::CreateModelCompilationOptions);
 
     nanobind::class_<Pyort::TensorInfo>(m, "TensorInfo")
