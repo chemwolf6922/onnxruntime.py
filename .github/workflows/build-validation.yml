@@ -21,5 +21,10 @@ jobs:
       with:
         submodules: recursive
     
+    - name: Setup build environment
+      uses: ./.github/actions/windows-prepare
+    
     - name: Build wheels
-      uses: ./.github/actions/build-wheels
+      uses: ./.github/actions/windows-build
+      with:
+        python-version: '3.13'
