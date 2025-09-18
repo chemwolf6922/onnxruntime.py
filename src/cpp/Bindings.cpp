@@ -106,8 +106,8 @@ NB_MODULE(_pyort, m) {
         .def_ro("shape", &Pyort::TensorInfo::shape)
         .def_ro("dimensions", &Pyort::TensorInfo::dimensions)
         .def_prop_ro("dtype",
-            [](const Pyort::TensorInfo &self) -> nanobind::object {
-                return Pyort::Value::NpTypeToPythonObject(self.dtype);
+            [](const Pyort::TensorInfo &self) -> std::string {
+                return Pyort::Value::NpTypeToName(self.dtype);
             });
 
     nanobind::class_<Pyort::Session>(m, "Session")

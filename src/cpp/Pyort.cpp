@@ -859,25 +859,23 @@ nanobind::dlpack::dtype Pyort::Value::OrtTypeToNpType(ONNXTensorElementDataType 
     throw std::runtime_error("Unsupported ONNX tensor element data type: " + std::to_string(ortType));
 }
 
-nanobind::object Pyort::Value::NpTypeToPythonObject(const nanobind::dlpack::dtype& npType)
+std::string Pyort::Value::NpTypeToName(const nanobind::dlpack::dtype& npType)
 {
-    static std::map<nanobind::dlpack::dtype, nanobind::object> typeMap{};
+    static std::map<nanobind::dlpack::dtype, std::string> typeMap{};
     if (typeMap.empty())
     {
-        auto np = nanobind::module_::import_("numpy");
-        auto dtype = np.attr("dtype");
-        typeMap[nanobind::dtype<bool>()] = dtype("bool");
-        typeMap[nanobind::dtype<int8_t>()] = dtype("int8");
-        typeMap[nanobind::dtype<uint8_t>()] = dtype("uint8");
-        typeMap[nanobind::dtype<int16_t>()] = dtype("int16");
-        typeMap[nanobind::dtype<uint16_t>()] = dtype("uint16");
-        typeMap[nanobind::dtype<int32_t>()] = dtype("int32");
-        typeMap[nanobind::dtype<uint32_t>()] = dtype("uint32");
-        typeMap[nanobind::dtype<int64_t>()] = dtype("int64");
-        typeMap[nanobind::dtype<uint64_t>()] = dtype("uint64");
-        typeMap[nanobind::dtype<float>()] = dtype("float32");
-        typeMap[nanobind::dtype<double>()] = dtype("float64");
-        typeMap[{ static_cast<uint8_t>(nanobind::dlpack::dtype_code::Float), 16, 1 }] = dtype("float16");
+        typeMap[nanobind::dtype<bool>()] = "bool";
+        typeMap[nanobind::dtype<int8_t>()] = "int8";
+        typeMap[nanobind::dtype<uint8_t>()] = "uint8";
+        typeMap[nanobind::dtype<int16_t>()] = "int16";
+        typeMap[nanobind::dtype<uint16_t>()] = "uint16";
+        typeMap[nanobind::dtype<int32_t>()] = "int32";
+        typeMap[nanobind::dtype<uint32_t>()] = "uint32";
+        typeMap[nanobind::dtype<int64_t>()] = "int64";
+        typeMap[nanobind::dtype<uint64_t>()] = "uint64";
+        typeMap[nanobind::dtype<float>()] = "float32";
+        typeMap[nanobind::dtype<double>()] = "float64";
+        typeMap[{ static_cast<uint8_t>(nanobind::dlpack::dtype_code::Float), 16, 1 }] = "float16";
     }
     auto it = typeMap.find(npType);
     if (it == typeMap.end())
