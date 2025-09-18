@@ -9,16 +9,6 @@ runs:
     - name: Setup VS Dev Environment
       uses: ilammy/msvc-dev-cmd@v1
 
-    - name: Install NuGet
-      run: |
-        $nugetUrl = "https://dist.nuget.org/win-x86-commandline/latest/nuget.exe"
-        $nugetPath = "$env:TEMP\nuget.exe"
-        Invoke-WebRequest -Uri $nugetUrl -OutFile $nugetPath
-        # Add to PATH for current session
-        $env:PATH = "$env:TEMP;$env:PATH"
-        & "$nugetPath" help
-      shell: powershell
-
     - name: Download ONNX Runtime
       run: |
         .\GetOnnxruntime.ps1
