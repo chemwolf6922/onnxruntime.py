@@ -1,5 +1,6 @@
 from importlib import metadata
 from pathlib import Path
+from typing import Sequence, Mapping
 
 # DO NOT install pyort-lib for this example
 # We'll use the packed one in WinML
@@ -67,9 +68,9 @@ def dump_ep_device(ep_device: ort.EpDevice, index: int | None = None):
     print(f"    Device Type:   {ep_device.device.type.name}")
     print(f"    Device Vendor: {ep_device.device.vendor}")
 
-def ep_policy_delegate(ep_devices: list[ort.EpDevice],
-                                model_metadata: dict[str, str],
-                                runtime_metadata: dict[str, str],
+def ep_policy_delegate(ep_devices: Sequence[ort.EpDevice],
+                                model_metadata: Mapping[str, str],
+                                runtime_metadata: Mapping[str, str],
                                 max_eps: int) -> list[ort.EpDevice]:
     print("In EP policy delegate:")
     for (i, ep_device) in enumerate(ep_devices):
