@@ -74,10 +74,7 @@ shutil.rmtree(WHEEL_BUILD_DIR, ignore_errors=True)
 WHEEL_BUILD_DIR.mkdir(parents=True, exist_ok=True)
 wheel_build_source_dir = WHEEL_BUILD_DIR / "pyort"
 wheel_build_source_dir.mkdir(parents=True, exist_ok=True)
-onnxruntime_lib_path = {
-    'amd64': PROJECT_DIR / "onnxruntime" / "lib",
-    'arm64': PROJECT_DIR / "onnxruntime-arm64" / "lib"
-}[target_arch]
+onnxruntime_lib_path = PROJECT_DIR / "onnxruntime" / "lib"
 shutil.copy(onnxruntime_lib_path / "onnxruntime.dll", wheel_build_source_dir)
 shutil.copy(onnxruntime_lib_path / "onnxruntime_providers_shared.dll", wheel_build_source_dir)
 wheel_build_dist_info_dir = WHEEL_BUILD_DIR / f"pyort_lib-{get_lib_version()}.dist-info"

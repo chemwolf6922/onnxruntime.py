@@ -23,8 +23,8 @@ runs:
       run: |
         cd ${{ github.workspace }}
         Remove-Item -Recurse -Force build -ErrorAction SilentlyContinue
-        mkdir -p build
-        mkdir -p dist
+        New-Item -ItemType Directory -Force -Path build
+        New-Item -ItemType Directory -Force -Path dist
         cmake -S . -B build
         cmake --build build --config Release
       shell: powershell
