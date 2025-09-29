@@ -1,4 +1,4 @@
-#include "Pyort.h"
+#include "Ortpy.h"
 #include <cstring>
 #include <string>
 #include <map>
@@ -40,7 +40,7 @@ namespace nanobind::dlpack {
 
 /** Global */
 
-const OrtApi* Pyort::GetApi()
+const OrtApi* Ortpy::GetApi()
 {
     static const OrtApi* api = nullptr;
     if (api == nullptr)
@@ -54,18 +54,18 @@ const OrtApi* Pyort::GetApi()
     return api;
 }
 
-OrtAllocator* Pyort::GetAllocator()
+OrtAllocator* Ortpy::GetAllocator()
 {
     static OrtAllocator* allocator = nullptr;
     if (allocator == nullptr)
     {
-        Pyort::Status status = GetApi()->GetAllocatorWithDefaultOptions(&allocator);
+        Ortpy::Status status = GetApi()->GetAllocatorWithDefaultOptions(&allocator);
         status.Check();
     }
     return allocator;
 }
 
-std::unordered_map<std::string, std::string> Pyort::KeyValuePairsToMap(const OrtKeyValuePairs* pairs)
+std::unordered_map<std::string, std::string> Ortpy::KeyValuePairsToMap(const OrtKeyValuePairs* pairs)
 {
     std::unordered_map<std::string, std::string> map{};
     if (pairs == nullptr)
@@ -88,7 +88,7 @@ std::unordered_map<std::string, std::string> Pyort::KeyValuePairsToMap(const Ort
 
 /** HardwareDevice */
 
-Pyort::HardwareDevice::HardwareDevice(const OrtHardwareDevice* device)
+Ortpy::HardwareDevice::HardwareDevice(const OrtHardwareDevice* device)
 {
     if (device == nullptr)
     {
@@ -105,7 +105,7 @@ Pyort::HardwareDevice::HardwareDevice(const OrtHardwareDevice* device)
 
 /** EpDevice */
 
-Pyort::EpDevice::EpDevice(const OrtEpDevice* epDevice)
+Ortpy::EpDevice::EpDevice(const OrtEpDevice* epDevice)
 {
     if (epDevice == nullptr)
     {
@@ -121,14 +121,14 @@ Pyort::EpDevice::EpDevice(const OrtEpDevice* epDevice)
     device = GetApi()->EpDevice_Device(epDevice);
 }
 
-Pyort::EpDevice::operator const OrtEpDevice*() const
+Ortpy::EpDevice::operator const OrtEpDevice*() const
 {
     return _ptr;
 }
 
 /** Status */
 
-OrtErrorCode Pyort::Status::GetErrorCode() const
+OrtErrorCode Ortpy::Status::GetErrorCode() const
 {
     if (_ptr == nullptr)
     {
@@ -137,7 +137,7 @@ OrtErrorCode Pyort::Status::GetErrorCode() const
     return GetApi()->GetErrorCode(_ptr);
 }
 
-std::string Pyort::Status::GetErrorMessage() const
+std::string Ortpy::Status::GetErrorMessage() const
 {
     if (_ptr == nullptr)
     {
@@ -146,7 +146,7 @@ std::string Pyort::Status::GetErrorMessage() const
     return GetApi()->GetErrorMessage(_ptr);
 }
 
-void Pyort::Status::Check() const
+void Ortpy::Status::Check() const
 {
     OrtErrorCode code = GetErrorCode();
     if (code != ORT_OK)
@@ -155,56 +155,56 @@ void Pyort::Status::Check() const
     }
 }
 
-void Pyort::Status::ReleaseOrtType(OrtStatus* ptr)
+void Ortpy::Status::ReleaseOrtType(OrtStatus* ptr)
 {
     GetApi()->ReleaseStatus(ptr);
 }
 
 /** Env */
 
-std::shared_ptr<Pyort::Env> Pyort::Env::_instance = nullptr;
+std::shared_ptr<Ortpy::Env> Ortpy::Env::_instance = nullptr;
 
-std::shared_ptr<Pyort::Env> Pyort::Env::GetSingleton()
+std::shared_ptr<Ortpy::Env> Ortpy::Env::GetSingleton()
 {
     if (!_instance) 
     {
-        _instance = std::shared_ptr<Pyort::Env>(new Pyort::Env());
+        _instance = std::shared_ptr<Ortpy::Env>(new Ortpy::Env());
     }
     return _instance;
 }
 
-Pyort::Env::Env()
+Ortpy::Env::Env()
     : OrtTypeWrapper<OrtEnv, Env>(nullptr)
 {
-    Pyort::Status status = GetApi()->CreateEnv(ORT_LOGGING_LEVEL_WARNING, "Pyort", &_ptr);
+    Ortpy::Status status = GetApi()->CreateEnv(ORT_LOGGING_LEVEL_WARNING, "Ortpy", &_ptr);
     status.Check();
 }
 
-void Pyort::Env::ReleaseOrtType(OrtEnv* ptr)
+void Ortpy::Env::ReleaseOrtType(OrtEnv* ptr)
 {
     GetApi()->ReleaseEnv(ptr);
 }
 
-void Pyort::Env::RegisterExecutionProviderLibrary(const std::string& name, const std::string& path)
+void Ortpy::Env::RegisterExecutionProviderLibrary(const std::string& name, const std::string& path)
 {
-    Pyort::Status status = GetApi()->RegisterExecutionProviderLibrary(_ptr, name.c_str(), StringToOrtString(path).c_str());
+    Ortpy::Status status = GetApi()->RegisterExecutionProviderLibrary(_ptr, name.c_str(), StringToOrtString(path).c_str());
     status.Check();
 }
 
-void Pyort::Env::UnregisterExecutionProviderLibrary(const std::string& name)
+void Ortpy::Env::UnregisterExecutionProviderLibrary(const std::string& name)
 {
-    Pyort::Status status = GetApi()->UnregisterExecutionProviderLibrary(_ptr, name.c_str());
+    Ortpy::Status status = GetApi()->UnregisterExecutionProviderLibrary(_ptr, name.c_str());
     status.Check();
 }
 
-std::vector<Pyort::EpDevice> Pyort::Env::GetEpDevices() const
+std::vector<Ortpy::EpDevice> Ortpy::Env::GetEpDevices() const
 {
     /** DO NOT free this. This is owned by onnxruntime. */
     const OrtEpDevice* const* devicesRaw = nullptr;
     size_t deviceCount = 0;
-    Pyort::Status status = GetApi()->GetEpDevices(_ptr, &devicesRaw, &deviceCount);
+    Ortpy::Status status = GetApi()->GetEpDevices(_ptr, &devicesRaw, &deviceCount);
     status.Check();
-    std::vector<Pyort::EpDevice> devices;
+    std::vector<Ortpy::EpDevice> devices;
     devices.reserve(deviceCount);
     for (size_t i = 0; i < deviceCount; ++i)
     {
@@ -215,57 +215,57 @@ std::vector<Pyort::EpDevice> Pyort::Env::GetEpDevices() const
 
 /** ModelCompilationOptions */
 
-void Pyort::ModelCompilationOptions::ReleaseOrtType(OrtModelCompilationOptions* ptr)
+void Ortpy::ModelCompilationOptions::ReleaseOrtType(OrtModelCompilationOptions* ptr)
 {
     GetApi()->GetCompileApi()->ReleaseModelCompilationOptions(ptr);
 }
 
-void Pyort::ModelCompilationOptions::SetInputModelPath(const std::string& path)
+void Ortpy::ModelCompilationOptions::SetInputModelPath(const std::string& path)
 {
-    Pyort::Status status = GetApi()->GetCompileApi()->ModelCompilationOptions_SetInputModelPath(
+    Ortpy::Status status = GetApi()->GetCompileApi()->ModelCompilationOptions_SetInputModelPath(
         _ptr, StringToOrtString(path).c_str());
     status.Check();
 }
 
-void Pyort::ModelCompilationOptions::SetInputModelFromBuffer(const nanobind::bytes& modelBytes)
+void Ortpy::ModelCompilationOptions::SetInputModelFromBuffer(const nanobind::bytes& modelBytes)
 {
-    Pyort::Status status = GetApi()->GetCompileApi()->ModelCompilationOptions_SetInputModelFromBuffer(
+    Ortpy::Status status = GetApi()->GetCompileApi()->ModelCompilationOptions_SetInputModelFromBuffer(
         _ptr,
         modelBytes.data(),
         modelBytes.size());
     status.Check();
 }
 
-void Pyort::ModelCompilationOptions::SetOutputModelExternalInitializersFile(
+void Ortpy::ModelCompilationOptions::SetOutputModelExternalInitializersFile(
     const std::string& path, size_t externalInitializerSizeThreshold)
 {
-    Pyort::Status status = GetApi()->GetCompileApi()->ModelCompilationOptions_SetOutputModelExternalInitializersFile(
+    Ortpy::Status status = GetApi()->GetCompileApi()->ModelCompilationOptions_SetOutputModelExternalInitializersFile(
         _ptr,
         StringToOrtString(path).c_str(),
         externalInitializerSizeThreshold);
     status.Check();
 }
 
-void Pyort::ModelCompilationOptions::SetEpContextEmbedMode(bool embedContext)
+void Ortpy::ModelCompilationOptions::SetEpContextEmbedMode(bool embedContext)
 {
-    Pyort::Status status = GetApi()->GetCompileApi()->ModelCompilationOptions_SetEpContextEmbedMode(_ptr, embedContext);
+    Ortpy::Status status = GetApi()->GetCompileApi()->ModelCompilationOptions_SetEpContextEmbedMode(_ptr, embedContext);
     status.Check();
 }
 
-void Pyort::ModelCompilationOptions::CompileModelToFile(const std::string& path)
+void Ortpy::ModelCompilationOptions::CompileModelToFile(const std::string& path)
 {
-    Pyort::Status status = GetApi()->GetCompileApi()->ModelCompilationOptions_SetOutputModelPath(
+    Ortpy::Status status = GetApi()->GetCompileApi()->ModelCompilationOptions_SetOutputModelPath(
         _ptr, StringToOrtString(path).c_str());
     status.Check();
     status = GetApi()->GetCompileApi()->CompileModel(*Env::GetSingleton(), _ptr);
     status.Check();
 }
 
-nanobind::bytes Pyort::ModelCompilationOptions::CompileModelToBuffer()
+nanobind::bytes Ortpy::ModelCompilationOptions::CompileModelToBuffer()
 {
     void* buffer = nullptr;
     size_t bufferSize = 0;
-    Pyort::Status status = GetApi()->GetCompileApi()->ModelCompilationOptions_SetOutputModelBuffer(
+    Ortpy::Status status = GetApi()->GetCompileApi()->ModelCompilationOptions_SetOutputModelBuffer(
         _ptr, GetAllocator(), &buffer, &bufferSize); 
     status.Check();
     status = GetApi()->GetCompileApi()->CompileModel(*Env::GetSingleton(), _ptr);
@@ -277,19 +277,19 @@ nanobind::bytes Pyort::ModelCompilationOptions::CompileModelToBuffer()
 
 /** SessionOptions */
 
-Pyort::SessionOptions::SessionOptions()
+Ortpy::SessionOptions::SessionOptions()
     : OrtTypeWrapper<OrtSessionOptions, SessionOptions>(nullptr)
 {
-    Pyort::Status status = GetApi()->CreateSessionOptions(&_ptr);
+    Ortpy::Status status = GetApi()->CreateSessionOptions(&_ptr);
     status.Check();
 }
 
-void Pyort::SessionOptions::ReleaseOrtType(OrtSessionOptions* ptr)
+void Ortpy::SessionOptions::ReleaseOrtType(OrtSessionOptions* ptr)
 {
     GetApi()->ReleaseSessionOptions(ptr);
 }
 
-int Pyort::SessionOptions::TpTraverse(PyObject* self, visitproc visit, void* arg) noexcept
+int Ortpy::SessionOptions::TpTraverse(PyObject* self, visitproc visit, void* arg) noexcept
 {
     try
     {        
@@ -314,7 +314,7 @@ int Pyort::SessionOptions::TpTraverse(PyObject* self, visitproc visit, void* arg
     }
 }
 
-int Pyort::SessionOptions::TpClear(PyObject* self) noexcept
+int Ortpy::SessionOptions::TpClear(PyObject* self) noexcept
 {
     try
     {
@@ -329,7 +329,7 @@ int Pyort::SessionOptions::TpClear(PyObject* self) noexcept
     }
 }
 
-void Pyort::SessionOptions::AppendExecutionProvider_V2(
+void Ortpy::SessionOptions::AppendExecutionProvider_V2(
     const std::vector<EpDevice>& epDevices,
     const std::unordered_map<std::string, std::string>& epOptions)
 {
@@ -348,9 +348,9 @@ void Pyort::SessionOptions::AppendExecutionProvider_V2(
         epOptionKeys.push_back(k.c_str());
         epOptionValues.push_back(v.c_str());
     }
-    Pyort::Status status = GetApi()->SessionOptionsAppendExecutionProvider_V2(
+    Ortpy::Status status = GetApi()->SessionOptionsAppendExecutionProvider_V2(
         _ptr,
-        *Pyort::Env::GetSingleton(),
+        *Ortpy::Env::GetSingleton(),
         epDevicePtrs.data(),
         epDevicePtrs.size(),
         epOptionKeys.data(),
@@ -359,13 +359,13 @@ void Pyort::SessionOptions::AppendExecutionProvider_V2(
     status.Check();
 }
 
-void Pyort::SessionOptions::SetEpSelectionPolicy(OrtExecutionProviderDevicePolicy policy)
+void Ortpy::SessionOptions::SetEpSelectionPolicy(OrtExecutionProviderDevicePolicy policy)
 {
-    Pyort::Status status = GetApi()->SessionOptionsSetEpSelectionPolicy(_ptr, policy);
+    Ortpy::Status status = GetApi()->SessionOptionsSetEpSelectionPolicy(_ptr, policy);
     status.Check();
 }
 
-void Pyort::SessionOptions::SetEpSelectionPolicyDelegate(const EpSelectionPolicyDelegate& delegate)
+void Ortpy::SessionOptions::SetEpSelectionPolicyDelegate(const EpSelectionPolicyDelegate& delegate)
 {
     if (delegate == nullptr)
     {
@@ -384,17 +384,17 @@ void Pyort::SessionOptions::SetEpSelectionPolicyDelegate(const EpSelectionPolicy
     ) -> OrtStatus* {
         try
         {
-            Pyort::SessionOptions* options = static_cast<Pyort::SessionOptions*>(state);
+            Ortpy::SessionOptions* options = static_cast<Ortpy::SessionOptions*>(state);
             auto& delegate = options->_delegate;
-            std::vector<Pyort::EpDevice> devices;
+            std::vector<Ortpy::EpDevice> devices;
             devices.reserve(num_devices);
             for (size_t i = 0; i < num_devices; ++i)
             {
                 devices.emplace_back(ep_devices[i]);
             }
-            auto modelMetadata = Pyort::KeyValuePairsToMap(model_metadata);
-            auto runtimeMetadata = Pyort::KeyValuePairsToMap(runtime_metadata);
-            std::vector<Pyort::EpDevice> selectedDevices{};
+            auto modelMetadata = Ortpy::KeyValuePairsToMap(model_metadata);
+            auto runtimeMetadata = Ortpy::KeyValuePairsToMap(runtime_metadata);
+            std::vector<Ortpy::EpDevice> selectedDevices{};
             {
                 nanobind::gil_scoped_acquire acquire;
                 selectedDevices = delegate(devices, modelMetadata, runtimeMetadata, max_selected);
@@ -419,7 +419,7 @@ void Pyort::SessionOptions::SetEpSelectionPolicyDelegate(const EpSelectionPolicy
             return GetApi()->CreateStatus(ORT_FAIL, "Unknown error in EpSelectionDelegate");
         }
     };
-    Pyort::Status status = GetApi()->SessionOptionsSetEpSelectionPolicyDelegate(
+    Ortpy::Status status = GetApi()->SessionOptionsSetEpSelectionPolicyDelegate(
         _ptr,
         delegateWrapper,
         /** If the session_options gets deleted somehow, this will cause an invalid access. */
@@ -427,10 +427,10 @@ void Pyort::SessionOptions::SetEpSelectionPolicyDelegate(const EpSelectionPolicy
     status.Check();
 }
 
-Pyort::ModelCompilationOptions Pyort::SessionOptions::CreateModelCompilationOptions() const
+Ortpy::ModelCompilationOptions Ortpy::SessionOptions::CreateModelCompilationOptions() const
 {
     OrtModelCompilationOptions* options = nullptr;
-    Pyort::Status status = GetApi()->GetCompileApi()->CreateModelCompilationOptionsFromSessionOptions(
+    Ortpy::Status status = GetApi()->GetCompileApi()->CreateModelCompilationOptionsFromSessionOptions(
         *Env::GetSingleton(), _ptr, &options);
     status.Check();
     return ModelCompilationOptions{ options };
@@ -438,25 +438,25 @@ Pyort::ModelCompilationOptions Pyort::SessionOptions::CreateModelCompilationOpti
 
 /** TypeInfo */
 
-void Pyort::TypeInfo::ReleaseOrtType(OrtTypeInfo* ptr)
+void Ortpy::TypeInfo::ReleaseOrtType(OrtTypeInfo* ptr)
 {
     GetApi()->ReleaseTypeInfo(ptr);
 }
 
 /** TensorTypeAndShapeInfo */
 
-void Pyort::TensorTypeAndShapeInfo::ReleaseOrtType(OrtTensorTypeAndShapeInfo* ptr)
+void Ortpy::TensorTypeAndShapeInfo::ReleaseOrtType(OrtTensorTypeAndShapeInfo* ptr)
 {
     GetApi()->ReleaseTensorTypeAndShapeInfo(ptr);
 }
 
 /** TensorInfo */
 
-Pyort::TensorInfo::TensorInfo(const TypeInfo& typeInfo)
+Ortpy::TensorInfo::TensorInfo(const TypeInfo& typeInfo)
 {
     const OrtTensorTypeAndShapeInfo* tensorInfo = nullptr;
     /** DO NOT free the tensorInfo. It's bind to the typeInfo */
-    Pyort::Status status = GetApi()->CastTypeInfoToTensorInfo(typeInfo, &tensorInfo);
+    Ortpy::Status status = GetApi()->CastTypeInfoToTensorInfo(typeInfo, &tensorInfo);
     status.Check();
     size_t dimCount = 0;
     status = GetApi()->GetDimensionsCount(tensorInfo, &dimCount);
@@ -476,17 +476,17 @@ Pyort::TensorInfo::TensorInfo(const TypeInfo& typeInfo)
     ONNXTensorElementDataType type;
     status = GetApi()->GetTensorElementType(tensorInfo, &type);
     status.Check();
-    dtype = Pyort::Value::OrtTypeToNpType(type);
+    dtype = Ortpy::Value::OrtTypeToNpType(type);
 }
 
 /** Session */
 
-Pyort::Session::Session(const std::string& modelPath, const SessionOptions& options)
+Ortpy::Session::Session(const std::string& modelPath, const SessionOptions& options)
     : OrtTypeWrapper<OrtSession, Session>(nullptr)
 {
     OrtSession* session = nullptr;
-    Pyort::Status status = GetApi()->CreateSession(
-        *Pyort::Env::GetSingleton(),
+    Ortpy::Status status = GetApi()->CreateSession(
+        *Ortpy::Env::GetSingleton(),
         StringToOrtString(modelPath).c_str(),
         options,
         &session);
@@ -494,17 +494,17 @@ Pyort::Session::Session(const std::string& modelPath, const SessionOptions& opti
     _ptr = session;
 }
 
-void Pyort::Session::ReleaseOrtType(OrtSession* ptr)
+void Ortpy::Session::ReleaseOrtType(OrtSession* ptr)
 {
     GetApi()->ReleaseSession(ptr);
 }
 
-std::unordered_map<std::string, Pyort::TensorInfo> Pyort::Session::GetInputInfo() const
+std::unordered_map<std::string, Ortpy::TensorInfo> Ortpy::Session::GetInputInfo() const
 {
     size_t inputCount = 0;
-    Pyort::Status status = GetApi()->SessionGetInputCount(_ptr, &inputCount);
+    Ortpy::Status status = GetApi()->SessionGetInputCount(_ptr, &inputCount);
     status.Check();
-    std::unordered_map<std::string, Pyort::TensorInfo> inputInfo;
+    std::unordered_map<std::string, Ortpy::TensorInfo> inputInfo;
     auto allocator = GetAllocator();
     for (size_t i = 0; i < inputCount; i++)
     {
@@ -523,12 +523,12 @@ std::unordered_map<std::string, Pyort::TensorInfo> Pyort::Session::GetInputInfo(
     return inputInfo;
 }
 
-std::unordered_map<std::string, Pyort::TensorInfo> Pyort::Session::GetOutputInfo() const
+std::unordered_map<std::string, Ortpy::TensorInfo> Ortpy::Session::GetOutputInfo() const
 {
     size_t outputCount = 0;
-    Pyort::Status status = GetApi()->SessionGetOutputCount(_ptr, &outputCount);
+    Ortpy::Status status = GetApi()->SessionGetOutputCount(_ptr, &outputCount);
     status.Check();
-    std::unordered_map<std::string, Pyort::TensorInfo> outputInfo;
+    std::unordered_map<std::string, Ortpy::TensorInfo> outputInfo;
     auto allocator = GetAllocator();
     for (size_t i = 0; i < outputCount; i++)
     {
@@ -547,8 +547,8 @@ std::unordered_map<std::string, Pyort::TensorInfo> Pyort::Session::GetOutputInfo
     return outputInfo;
 }
 
-std::unordered_map<std::string, Pyort::NpArray> Pyort::Session::Run(
-    const std::unordered_map<std::string, Pyort::NpArray>& inputs) const
+std::unordered_map<std::string, Ortpy::NpArray> Ortpy::Session::Run(
+    const std::unordered_map<std::string, Ortpy::NpArray>& inputs) const
 {
     /** Create input values */
     std::vector<const char*> inputNamesView;
@@ -578,7 +578,7 @@ std::unordered_map<std::string, Pyort::NpArray> Pyort::Session::Run(
         outputNamesView.emplace_back(pair.first.c_str());
     }
     /** Run the session */
-    Pyort::Status status = GetApi()->Run(
+    Ortpy::Status status = GetApi()->Run(
         _ptr, nullptr,
         inputNamesView.data(), inputValuesView.data(), inputs.size(),
         outputNamesView.data(), outputInfo.size(), outputValues.data());
@@ -600,7 +600,7 @@ std::unordered_map<std::string, Pyort::NpArray> Pyort::Session::Run(
 
 /** Value */
 
-Pyort::Value::State::~State()
+Ortpy::Value::State::~State()
 {
     if (ortValue != nullptr)
     {
@@ -608,7 +608,7 @@ Pyort::Value::State::~State()
     }
 }
 
-Pyort::Value::Value(OrtValue* ptr)
+Ortpy::Value::Value(OrtValue* ptr)
 {
     if (ptr == nullptr)
     {
@@ -632,7 +632,7 @@ Pyort::Value::Value(OrtValue* ptr)
         npType);
 }
 
-Pyort::Value::Value(const NpArray& npArray)
+Ortpy::Value::Value(const NpArray& npArray)
 {
     /** npArray (indirectly) holds the data, the Value holds a reference. */
     auto ortType = NpTypeToOrtType(npArray.dtype());
@@ -643,8 +643,8 @@ Pyort::Value::Value(const NpArray& npArray)
     {
         ortShape.push_back(npArray.shape(i));
     }
-    Pyort::MemoryInfo memInfo{};
-    Pyort::Status status = GetApi()->CreateTensorWithDataAsOrtValue(
+    Ortpy::MemoryInfo memInfo{};
+    Ortpy::Status status = GetApi()->CreateTensorWithDataAsOrtValue(
         memInfo,
         npArray.data(),
         npArray.nbytes(),
@@ -655,9 +655,9 @@ Pyort::Value::Value(const NpArray& npArray)
     status.Check();
 }
 
-Pyort::Value::Value(const std::vector<int64_t>& ortShape, ONNXTensorElementDataType ortType)
+Ortpy::Value::Value(const std::vector<int64_t>& ortShape, ONNXTensorElementDataType ortType)
 {
-    Pyort::Status status = GetApi()->CreateTensorAsOrtValue(
+    Ortpy::Status status = GetApi()->CreateTensorAsOrtValue(
         GetAllocator(),
         ortShape.data(),
         ortShape.size(),
@@ -679,7 +679,7 @@ Pyort::Value::Value(const std::vector<int64_t>& ortShape, ONNXTensorElementDataT
         npType);
 }
 
-Pyort::Value::operator Pyort::NpArray() const
+Ortpy::Value::operator Ortpy::NpArray() const
 {
     if (!_state->npArray.has_value())
     {
@@ -688,19 +688,19 @@ Pyort::Value::operator Pyort::NpArray() const
     return *(_state->npArray);
 }
 
-Pyort::Value::operator OrtValue*() const
+Ortpy::Value::operator OrtValue*() const
 {
     return _state->ortValue;
 }
 
-ONNXTensorElementDataType Pyort::Value::GetType() const
+ONNXTensorElementDataType Ortpy::Value::GetType() const
 {
     if (_state->ortValue == nullptr)
     {
         throw std::runtime_error("Value is empty");
     }
     OrtTensorTypeAndShapeInfo *info = nullptr;
-    Pyort::Status status = GetApi()->GetTensorTypeAndShape(_state->ortValue, &info);
+    Ortpy::Status status = GetApi()->GetTensorTypeAndShape(_state->ortValue, &info);
     status.Check();
     ONNXTensorElementDataType type;
     status = GetApi()->GetTensorElementType(info, &type);
@@ -708,14 +708,14 @@ ONNXTensorElementDataType Pyort::Value::GetType() const
     return type;
 }
 
-std::vector<int64_t> Pyort::Value::GetShape() const
+std::vector<int64_t> Ortpy::Value::GetShape() const
 {
     if (_state->ortValue == nullptr)
     {
         throw std::runtime_error("Value is empty");
     }
     OrtTensorTypeAndShapeInfo *info = nullptr;
-    Pyort::Status status = GetApi()->GetTensorTypeAndShape(_state->ortValue, &info);
+    Ortpy::Status status = GetApi()->GetTensorTypeAndShape(_state->ortValue, &info);
     status.Check();
     size_t dimCount = 0;
     status = GetApi()->GetDimensionsCount(info, &dimCount);
@@ -726,7 +726,7 @@ std::vector<int64_t> Pyort::Value::GetShape() const
     return shape;
 }
 
-size_t Pyort::Value::GetSize() const
+size_t Ortpy::Value::GetSize() const
 {
     if (_state->ortValue == nullptr)
     {
@@ -787,14 +787,14 @@ size_t Pyort::Value::GetSize() const
     return size;
 }
 
-void* Pyort::Value::GetData() const
+void* Ortpy::Value::GetData() const
 {
     if (_state->ortValue == nullptr)
     {
         throw std::runtime_error("Value is empty");
     }
     void* data = nullptr;
-    Pyort::Status status = GetApi()->GetTensorMutableData(_state->ortValue, &data);
+    Ortpy::Status status = GetApi()->GetTensorMutableData(_state->ortValue, &data);
     if (data == nullptr)
     {
         throw std::runtime_error("Failed to get data from OrtValue.");
@@ -802,7 +802,7 @@ void* Pyort::Value::GetData() const
     return data;
 }
 
-ONNXTensorElementDataType Pyort::Value::NpTypeToOrtType(const nanobind::dlpack::dtype& npType)
+ONNXTensorElementDataType Ortpy::Value::NpTypeToOrtType(const nanobind::dlpack::dtype& npType)
 {
     static std::map<nanobind::dlpack::dtype, ONNXTensorElementDataType> typeMap{};
     if (typeMap.empty())
@@ -828,7 +828,7 @@ ONNXTensorElementDataType Pyort::Value::NpTypeToOrtType(const nanobind::dlpack::
     return it->second;
 }
 
-nanobind::dlpack::dtype Pyort::Value::OrtTypeToNpType(ONNXTensorElementDataType ortType)
+nanobind::dlpack::dtype Ortpy::Value::OrtTypeToNpType(ONNXTensorElementDataType ortType)
 {
     switch (ortType) {
         case ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT:
@@ -859,7 +859,7 @@ nanobind::dlpack::dtype Pyort::Value::OrtTypeToNpType(ONNXTensorElementDataType 
     throw std::runtime_error("Unsupported ONNX tensor element data type: " + std::to_string(ortType));
 }
 
-std::string Pyort::Value::NpTypeToName(const nanobind::dlpack::dtype& npType)
+std::string Ortpy::Value::NpTypeToName(const nanobind::dlpack::dtype& npType)
 {
     static std::map<nanobind::dlpack::dtype, std::string> typeMap{};
     if (typeMap.empty())
@@ -885,7 +885,7 @@ std::string Pyort::Value::NpTypeToName(const nanobind::dlpack::dtype& npType)
     return it->second;
 }
 
-size_t Pyort::Value::GetSizeOfOrtType(ONNXTensorElementDataType ortType)
+size_t Ortpy::Value::GetSizeOfOrtType(ONNXTensorElementDataType ortType)
 {
     switch (ortType) {
         case ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT:
@@ -918,14 +918,14 @@ size_t Pyort::Value::GetSizeOfOrtType(ONNXTensorElementDataType ortType)
 
 /** MemoryInfo */
 
-Pyort::MemoryInfo::MemoryInfo()
+Ortpy::MemoryInfo::MemoryInfo()
     : OrtTypeWrapper<OrtMemoryInfo, MemoryInfo>(nullptr)
 {
-    Pyort::Status status = GetApi()->CreateCpuMemoryInfo(OrtArenaAllocator, OrtMemTypeDefault, &_ptr);
+    Ortpy::Status status = GetApi()->CreateCpuMemoryInfo(OrtArenaAllocator, OrtMemTypeDefault, &_ptr);
     status.Check();
 }
 
-void Pyort::MemoryInfo::ReleaseOrtType(OrtMemoryInfo* ptr)
+void Ortpy::MemoryInfo::ReleaseOrtType(OrtMemoryInfo* ptr)
 {
     GetApi()->ReleaseMemoryInfo(ptr);
 }

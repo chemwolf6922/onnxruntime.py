@@ -57,7 +57,7 @@ def get_dependency_string() -> str:
     lib_version = get_lib_version()
     version_parts = lib_version.split(".")
     major_minor = f"{version_parts[0]}.{version_parts[1]}"
-    return f"pyort_lib~={major_minor}.0"
+    return f"ortpy_lib~={major_minor}.0"
 
 if __name__ == "__main__":
     print(get_version())
