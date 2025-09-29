@@ -19,12 +19,12 @@ runs:
         pip install -r requirements.txt
       shell: powershell
 
-    - name: Build all wheels
+    - name: Build wheel
       run: |
         cd ${{ github.workspace }}
-        Remove-Item -Recurse -Force build, dist -ErrorAction SilentlyContinue
-        mkdir build
-        mkdir dist
+        Remove-Item -Recurse -Force build -ErrorAction SilentlyContinue
+        mkdir -p build
+        mkdir -p dist
         cmake -S . -B build
         cmake --build build --config Release
       shell: powershell

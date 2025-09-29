@@ -26,23 +26,7 @@ endif()
 
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/nanobind)
 
-# Determine target architecture
-if(CMAKE_GENERATOR_PLATFORM)
-  set(TARGET_ARCH "${CMAKE_GENERATOR_PLATFORM}")
-elseif(CMAKE_HOST_SYSTEM_PROCESSOR)
-  set(TARGET_ARCH "${CMAKE_HOST_SYSTEM_PROCESSOR}")
-endif()
-
-message(STATUS "Building for architecture: ${TARGET_ARCH}")
-
-# Set ONNXRUNTIME_ROOT based on architecture
-if(TARGET_ARCH MATCHES "AMD64|x64")
-  set(ONNXRUNTIME_ROOT "${CMAKE_SOURCE_DIR}/onnxruntime")
-elseif(TARGET_ARCH MATCHES "ARM64")
-  set(ONNXRUNTIME_ROOT "${CMAKE_SOURCE_DIR}/onnxruntime-arm64")
-else()
-  message(FATAL_ERROR "Unsupported architecture: ${TARGET_ARCH}")
-endif()
+set(ONNXRUNTIME_ROOT "${CMAKE_SOURCE_DIR}/onnxruntime")
 set(ONNXRUNTIME_LIB_DIR "${ONNXRUNTIME_ROOT}/lib")
 set(ONNXRUNTIME_LIB_NAME "onnxruntime")
 

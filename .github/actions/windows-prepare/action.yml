@@ -9,7 +9,18 @@ runs:
     - name: Setup VS Dev Environment
       uses: ilammy/msvc-dev-cmd@v1
 
+    - name: Setup python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.13'
+
+    - name: Install GitPython
+      run: |
+        python -m pip install --upgrade pip
+        pip install GitPython
+      shell: powershell
+
     - name: Download ONNX Runtime
       run: |
-        .\GetOnnxruntime.ps1
+        python get_onnxruntime.py
       shell: powershell
