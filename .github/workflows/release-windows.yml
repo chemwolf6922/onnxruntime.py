@@ -4,6 +4,9 @@ on:
   push:
     tags:
       - '*'
+  # For testing the release pipeline
+  pull_request:
+    branches: [ main ]
   workflow_dispatch:
 
 env:
