@@ -29,6 +29,16 @@ NB_MODULE(_ortpy, m) {
     m.attr("__version__") = ORTPY_VERSION;
     m.attr("ORT_API_VERSION") = ORT_API_VERSION;
 
+    nanobind::enum_<ExecutionMode>(m, "ExecutionMode")
+        .value("SEQUENTIAL", ORT_SEQUENTIAL)
+        .value("PARALLEL", ORT_PARALLEL);
+
+    nanobind::enum_<GraphOptimizationLevel>(m, "GraphOptimizationLevel")
+        .value("DISABLE_ALL", ORT_DISABLE_ALL)
+        .value("ENABLE_BASIC", ORT_ENABLE_BASIC)
+        .value("ENABLE_EXTENDED", ORT_ENABLE_EXTENDED)
+        .value("ENABLE_ALL", ORT_ENABLE_ALL);
+
     nanobind::enum_<OrtHardwareDeviceType>(m, "HardwareDeviceType")
         .value("CPU", OrtHardwareDeviceType_CPU)
         .value("GPU", OrtHardwareDeviceType_GPU)
@@ -90,6 +100,41 @@ NB_MODULE(_ortpy, m) {
 
     nanobind::class_<Ortpy::SessionOptions>(m, "SessionOptions", nanobind::type_slots(sessionOptionsSlots))
         .def(nanobind::init<>())
+        .def("set_optimized_model_file_path",
+            &Ortpy::SessionOptions::SetOptimizedModelFilePath,
+            nanobind::arg("path"))
+        .def("set_session_execution_mode",
+            &Ortpy::SessionOptions::SetSessionExecutionMode,
+            nanobind::arg("mode"))
+        .def("enable_profiling",
+            &Ortpy::SessionOptions::EnableProfiling,
+            nanobind::arg("profile_file_prefix"))
+        .def("disable_profiling", &Ortpy::SessionOptions::DisableProfiling)
+        .def("enable_mem_pattern", &Ortpy::SessionOptions::EnableMemPattern)
+        .def("disable_mem_pattern", &Ortpy::SessionOptions::DisableMemPattern)
+        .def("enable_cpu_mem_arena", &Ortpy::SessionOptions::EnableCpuMemArena)
+        .def("disable_cpu_mem_arena", &Ortpy::SessionOptions::DisableCpuMemArena)
+        .def("set_session_log_id",
+            &Ortpy::SessionOptions::SetSessionLogId,
+            nanobind::arg("log_id"))
+        .def("set_session_log_verbosity_level",
+            &Ortpy::SessionOptions::SetSessionLogVerbosityLevel,
+            nanobind::arg("level"))
+        .def("set_session_log_severity_level",
+            &Ortpy::SessionOptions::SetSessionLogSeverityLevel,
+            nanobind::arg("level"))
+        .def("set_session_graph_optimization_level",
+            &Ortpy::SessionOptions::SetSessionGraphOptimizationLevel,
+            nanobind::arg("level"))
+        .def("set_intra_op_num_threads",
+            &Ortpy::SessionOptions::SetIntraOpNumThreads,
+            nanobind::arg("intra_op_num_threads"))
+        .def("set_inter_op_num_threads",
+            &Ortpy::SessionOptions::SetInterOpNumThreads,
+            nanobind::arg("inter_op_num_threads"))
+        .def("register_custom_ops_library",
+            &Ortpy::SessionOptions::RegisterCustomOpsLibrary,
+            nanobind::arg("library_path"))
         .def("append_execution_provider_v2",
             &Ortpy::SessionOptions::AppendExecutionProvider_V2,
             nanobind::arg("ep_devices"),
@@ -110,13 +155,31 @@ NB_MODULE(_ortpy, m) {
                 return Ortpy::Value::NpTypeToName(self.dtype);
             });
 
+    nanobind::class_<Ortpy::RunOptions>(m, "RunOptions")
+        .def(nanobind::init<>())
+        .def_prop_rw("run_log_verbosity_level",
+            &Ortpy::RunOptions::GetRunLogVerbosityLevel,
+            &Ortpy::RunOptions::SetRunLogVerbosityLevel)
+        .def_prop_rw("run_log_severity_level",
+            &Ortpy::RunOptions::GetRunLogSeverityLevel,
+            &Ortpy::RunOptions::SetRunLogSeverityLevel)
+        .def_prop_rw("run_tag",
+            &Ortpy::RunOptions::GetRunTag,
+            &Ortpy::RunOptions::SetRunTag)
+        .def("set_terminate", &Ortpy::RunOptions::SetTerminate)
+        .def("unset_terminate", &Ortpy::RunOptions::UnsetTerminate);
+
     nanobind::class_<Ortpy::Session>(m, "Session")
         .def(nanobind::init<const std::string&, const Ortpy::SessionOptions&>(),
-             nanobind::arg("model_path"),
-             nanobind::arg("options"))
+            nanobind::arg("model_path"),
+            nanobind::arg("options"))
+        .def(nanobind::init<const nanobind::bytes&, const Ortpy::SessionOptions&>(),
+            nanobind::arg("model_bytes"),
+            nanobind::arg("options"))
         .def("get_input_info", &Ortpy::Session::GetInputInfo)
         .def("get_output_info", &Ortpy::Session::GetOutputInfo)
         .def("run",
-             &Ortpy::Session::Run,
-             nanobind::arg("inputs"));
+            &Ortpy::Session::Run,
+            nanobind::arg("inputs"),
+            nanobind::arg("run_options") = std::nullopt);
 }
