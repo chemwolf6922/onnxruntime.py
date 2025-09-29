@@ -759,7 +759,8 @@ std::unordered_map<std::string, Ortpy::TensorInfo> Ortpy::Session::GetOutputInfo
 
 std::unordered_map<std::string, Ortpy::NpArray> Ortpy::Session::Run(
     const std::unordered_map<std::string, Ortpy::NpArray>& inputs,
-    const std::optional<std::reference_wrapper<Ortpy::RunOptions>>& runOptions) const
+    const std::optional<std::vector<std::string>>& outputNamesOpt,
+    const std::optional<std::reference_wrapper<Ortpy::RunOptions>>& runOptionsOpt) const
 {
     /** Create input values */
     std::vector<const char*> inputNamesView;
@@ -777,22 +778,35 @@ std::unordered_map<std::string, Ortpy::NpArray> Ortpy::Session::Run(
         inputValues.emplace_back(std::move(value));
     }
     /** Create output values (part 1) */
-    auto outputInfo = GetOutputInfo();
+    std::vector<std::string> outputNames;
     std::vector<const char*> outputNamesView;
-    outputNamesView.reserve(outputInfo.size());
-    /** Let ort allocate the output values as we may not known their shapes */
-    std::vector<OrtValue*> outputValues(outputInfo.size(), nullptr);
-    std::vector<Value> outputValuesWrapper;
-    outputValuesWrapper.reserve(outputInfo.size());
-    for (const auto& pair: outputInfo)
+    if (outputNamesOpt.has_value())
     {
-        outputNamesView.emplace_back(pair.first.c_str());
+        outputNames = outputNamesOpt.value();
     }
+    else
+    {
+        auto outputInfo = GetOutputInfo();
+        outputNames.reserve(outputInfo.size());
+        for (const auto& pair : outputInfo)
+        {
+            outputNames.push_back(pair.first);
+        }
+    }
+    outputNamesView.reserve(outputNames.size());
+    for (const auto& name : outputNames)
+    {
+        outputNamesView.push_back(name.c_str());
+    }
+    /** Let ort allocate the output values as we may not known their shapes */
+    std::vector<OrtValue*> outputValues(outputNamesView.size(), nullptr);
+    std::vector<Value> outputValuesWrapper;
+    outputValuesWrapper.reserve(outputNamesView.size());
     /** Run the session */
     Ortpy::Status status = GetApi()->Run(
-        _ptr, runOptions.has_value() ? runOptions.value().get() : nullptr,
+        _ptr, runOptionsOpt.has_value() ? runOptionsOpt.value().get() : nullptr,
         inputNamesView.data(), inputValuesView.data(), inputs.size(),
-        outputNamesView.data(), outputInfo.size(), outputValues.data());
+        outputNamesView.data(), outputNamesView.size(), outputValues.data());
     status.Check();
     /** Create output values (part 2) */
     for (auto value : outputValues)
@@ -802,9 +816,9 @@ std::unordered_map<std::string, Ortpy::NpArray> Ortpy::Session::Run(
     }
     std::unordered_map<std::string, NpArray> outputs;
     size_t i = 0;
-    for (const auto& pair : outputInfo)
+    for (const auto& name : outputNames)
     {
-        outputs[pair.first] = outputValuesWrapper[i++];
+        outputs[name] = outputValuesWrapper[i++];
     }
     return outputs;
 }

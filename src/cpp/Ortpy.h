@@ -220,6 +220,7 @@ namespace Ortpy
         std::unordered_map<std::string, TensorInfo> GetOutputInfo() const;
         std::unordered_map<std::string, NpArray> Run(
             const std::unordered_map<std::string, NpArray>& inputs,
+            const std::optional<std::vector<std::string>>& outputNames,
             const std::optional<std::reference_wrapper<RunOptions>>& runOptions) const;
     };
 

@@ -181,5 +181,6 @@ NB_MODULE(_ortpy, m) {
         .def("run",
             &Ortpy::Session::Run,
             nanobind::arg("inputs"),
+            nanobind::arg("output_names") = std::nullopt,
             nanobind::arg("run_options") = std::nullopt);
 }
