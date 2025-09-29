@@ -65,10 +65,7 @@ jobs:
     - name: Setup build environment
       uses: ./.github/actions/windows-prepare
 
-    - name: Build wheels 3.10
-      uses: ./.github/actions/windows-build
-      with:
-        python-version: '3.10'
+    # Github's arm64 python support starts from 3.11
 
     - name: Build wheels 3.11
       uses: ./.github/actions/windows-build

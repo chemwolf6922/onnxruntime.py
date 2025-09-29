@@ -3,3 +3,4 @@ ninja>=1.10
 wheel
 numpy
 GitPython
+typing-extensions
