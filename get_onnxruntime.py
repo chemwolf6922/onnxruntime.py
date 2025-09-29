@@ -9,6 +9,7 @@ from typing import Iterable, List, Optional
 from urllib.request import Request, urlopen
 import git
 import platform
+import re
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 REQUIRED_ARCHITECTURES = ("win-x64", "win-arm64")
@@ -58,8 +59,7 @@ def try_get_git_tag(repo: git.Repo) -> Optional[str]:
     return matching_tags[0].name
 
 def git_tag_to_version_hint(tag: str) -> str:
-    # The git tag should strictly follow the v + PyPI version format.
-    version = tag.lstrip("vV")
+    version = re.sub(r'(a\d+|b\d+|rc\d+)$', '', tag)
     segments = version.split(".")
     if len(segments) < 2:
         raise RuntimeError(f"Git tag '{tag}' is not a valid version.")
