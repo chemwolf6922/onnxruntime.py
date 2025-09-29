@@ -77,6 +77,8 @@ wheel_build_source_dir.mkdir(parents=True, exist_ok=True)
 onnxruntime_lib_path = PROJECT_DIR / "onnxruntime" / "lib"
 shutil.copy(onnxruntime_lib_path / "onnxruntime.dll", wheel_build_source_dir)
 shutil.copy(onnxruntime_lib_path / "onnxruntime_providers_shared.dll", wheel_build_source_dir)
+onnxruntime_license_path = PROJECT_DIR / "onnxruntime" / "LICENSE"
+shutil.copy(onnxruntime_license_path, wheel_build_source_dir / "ONNXRUNTIME_LICENSE")
 wheel_build_dist_info_dir = WHEEL_BUILD_DIR / f"ortpy_lib-{get_lib_version()}.dist-info"
 wheel_build_dist_info_dir.mkdir(parents=True, exist_ok=True)
 copy_file_with_replacements(

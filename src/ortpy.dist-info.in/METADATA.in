@@ -10,7 +10,7 @@ Classifier: Programming Language :: C++
 Classifier: License :: OSI Approved :: MIT License
 Classifier: Operating System :: Microsoft :: Windows
 Project-URL: Homepage, https://github.com/chemwolf6922/onnxruntime.py
-Requires-Python: >=3.8
+Requires-Python: >=3.10
 Requires-Dist: numpy
 Provides-Extra: with-lib
 Requires-Dist: ORTPY_LIB_REQUIREMENT; extra == "with-lib"
