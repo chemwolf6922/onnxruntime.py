@@ -9,6 +9,10 @@
 #include <windows.h>
 #endif /** _WIN32 */
 
+#if defined(__linux__) || defined(__APPLE__)
+#include <dlfcn.h>
+#endif /** __linux__ || __APPLE__ */
+
 #ifdef _WIN32
 static std::wstring StringToWString(const std::string& str)
 {
@@ -178,6 +182,8 @@ Ortpy::Env::Env()
 {
     Ortpy::Status status = GetApi()->CreateEnv(ORT_LOGGING_LEVEL_WARNING, "Ortpy", &_ptr);
     status.Check();
+    /** Return value ignored */
+    GetApi()->DisableTelemetryEvents(_ptr);
 }
 
 void Ortpy::Env::ReleaseOrtType(OrtEnv* ptr)
@@ -275,6 +281,30 @@ nanobind::bytes Ortpy::ModelCompilationOptions::CompileModelToBuffer()
     return result;
 }
 
+/** LibraryHandle */
+
+void Ortpy::LibraryHandle::ReleaseOrtType(void* ptr)
+{
+    /**
+     * For whatever reason, onnxruntime lefts the handler to the user to free
+     *     w/o a unified API.
+     * So we have to do it ourselves here.
+     */
+#ifdef _WIN32
+    HMODULE hModule = static_cast<HMODULE>(ptr);
+    if (hModule)
+    {
+        FreeLibrary(hModule);
+    }
+#endif /** _WIN32 */
+#if defined(__linux__) || defined(__APPLE__)
+    if (ptr)
+    {
+        dlclose(ptr);
+    }
+#endif /** __linux__ || __APPLE__ */
+}
+
 /** SessionOptions */
 
 Ortpy::SessionOptions::SessionOptions()
@@ -287,6 +317,104 @@ Ortpy::SessionOptions::SessionOptions()
 void Ortpy::SessionOptions::ReleaseOrtType(OrtSessionOptions* ptr)
 {
     GetApi()->ReleaseSessionOptions(ptr);
+}
+
+void Ortpy::SessionOptions::SetOptimizedModelFilePath(const std::string& path)
+{
+    Ortpy::Status status = GetApi()->SetOptimizedModelFilePath(
+        _ptr, StringToOrtString(path).c_str());
+    status.Check();
+}
+
+void Ortpy::SessionOptions::SetSessionExecutionMode(ExecutionMode mode)
+{
+    Ortpy::Status status = GetApi()->SetSessionExecutionMode(_ptr, mode);
+    status.Check();
+}
+
+void Ortpy::SessionOptions::EnableProfiling(const std::string& profileFilePrefix)
+{
+    Ortpy::Status status = GetApi()->EnableProfiling(
+        _ptr, StringToOrtString(profileFilePrefix).c_str());
+    status.Check();
+}
+
+void Ortpy::SessionOptions::DisableProfiling()
+{
+    Ortpy::Status status = GetApi()->DisableProfiling(_ptr);
+    status.Check();
+}
+
+void Ortpy::SessionOptions::EnableMemPattern()
+{
+    Ortpy::Status status = GetApi()->EnableMemPattern(_ptr);
+    status.Check();
+}
+
+void Ortpy::SessionOptions::DisableMemPattern()
+{
+    Ortpy::Status status = GetApi()->DisableMemPattern(_ptr);
+    status.Check();
+}
+
+void Ortpy::SessionOptions::EnableCpuMemArena()
+{
+    Ortpy::Status status = GetApi()->EnableCpuMemArena(_ptr);
+    status.Check();
+}
+
+void Ortpy::SessionOptions::DisableCpuMemArena()
+{
+    Ortpy::Status status = GetApi()->DisableCpuMemArena(_ptr);
+    status.Check();
+}
+
+void Ortpy::SessionOptions::SetSessionLogId(const std::string& logId)
+{
+    Ortpy::Status status = GetApi()->SetSessionLogId(_ptr, logId.c_str());
+    status.Check();
+}
+
+void Ortpy::SessionOptions::SetSessionLogVerbosityLevel(int level)
+{
+    Ortpy::Status status = GetApi()->SetSessionLogVerbosityLevel(_ptr, level);
+    status.Check();
+}
+
+void Ortpy::SessionOptions::SetSessionLogSeverityLevel(int level)
+{
+    Ortpy::Status status = GetApi()->SetSessionLogSeverityLevel(_ptr, level);
+    status.Check();
+}
+
+void Ortpy::SessionOptions::SetSessionGraphOptimizationLevel(
+    GraphOptimizationLevel level)
+{
+    Ortpy::Status status = GetApi()->SetSessionGraphOptimizationLevel(_ptr, level);
+    status.Check();
+}
+
+void Ortpy::SessionOptions::SetIntraOpNumThreads(int intraOpNumThreads)
+{
+    Ortpy::Status status = GetApi()->SetIntraOpNumThreads(
+        _ptr, intraOpNumThreads);
+    status.Check();
+}
+
+void Ortpy::SessionOptions::SetInterOpNumThreads(int interOpNumThreads)
+{
+    Ortpy::Status status = GetApi()->SetInterOpNumThreads(
+        _ptr, interOpNumThreads);
+    status.Check();
+}
+
+Ortpy::LibraryHandle Ortpy::SessionOptions::RegisterCustomOpsLibrary(const std::string& libraryPath)
+{
+    void* handle = nullptr;
+    Ortpy::Status status = GetApi()->RegisterCustomOpsLibrary(
+        _ptr, libraryPath.c_str(), &handle);
+    status.Check();
+    return LibraryHandle{ handle };
 }
 
 int Ortpy::SessionOptions::TpTraverse(PyObject* self, visitproc visit, void* arg) noexcept
@@ -479,6 +607,74 @@ Ortpy::TensorInfo::TensorInfo(const TypeInfo& typeInfo)
     dtype = Ortpy::Value::OrtTypeToNpType(type);
 }
 
+/** RunOptions */
+
+void Ortpy::RunOptions::ReleaseOrtType(OrtRunOptions* ptr)
+{
+    GetApi()->ReleaseRunOptions(ptr);
+}
+
+Ortpy::RunOptions::RunOptions()
+    : OrtTypeWrapper<OrtRunOptions, RunOptions>(nullptr)
+{
+    Ortpy::Status status = GetApi()->CreateRunOptions(&_ptr);
+    status.Check();
+}
+
+void Ortpy::RunOptions::SetRunLogVerbosityLevel(int level)
+{
+    Ortpy::Status status = GetApi()->RunOptionsSetRunLogVerbosityLevel(_ptr, level);
+    status.Check();
+}
+
+int Ortpy::RunOptions::GetRunLogVerbosityLevel() const
+{
+    int level = 0;
+    Ortpy::Status status = GetApi()->RunOptionsGetRunLogVerbosityLevel(_ptr, &level);
+    status.Check();
+    return level;
+}
+
+void Ortpy::RunOptions::SetRunLogSeverityLevel(int level)
+{
+    Ortpy::Status status = GetApi()->RunOptionsSetRunLogSeverityLevel(_ptr, level);
+    status.Check();
+}
+
+int Ortpy::RunOptions::GetRunLogSeverityLevel() const
+{
+    int level = 0;
+    Ortpy::Status status = GetApi()->RunOptionsGetRunLogSeverityLevel(_ptr, &level);
+    status.Check();
+    return level;
+}
+
+void Ortpy::RunOptions::SetRunTag(const std::string& tag)
+{
+    Ortpy::Status status = GetApi()->RunOptionsSetRunTag(_ptr, tag.c_str());
+    status.Check();
+}
+
+std::string Ortpy::RunOptions::GetRunTag() const
+{
+    const char* tag = nullptr;
+    Ortpy::Status status = GetApi()->RunOptionsGetRunTag(_ptr, &tag);
+    status.Check();
+    return tag ? tag : "";
+}
+
+void Ortpy::RunOptions::SetTerminate()
+{
+    Ortpy::Status status = GetApi()->RunOptionsSetTerminate(_ptr);
+    status.Check();
+}
+
+void Ortpy::RunOptions::UnsetTerminate()
+{
+    Ortpy::Status status = GetApi()->RunOptionsUnsetTerminate(_ptr);
+    status.Check();
+}
+
 /** Session */
 
 Ortpy::Session::Session(const std::string& modelPath, const SessionOptions& options)
@@ -488,6 +684,20 @@ Ortpy::Session::Session(const std::string& modelPath, const SessionOptions& opti
     Ortpy::Status status = GetApi()->CreateSession(
         *Ortpy::Env::GetSingleton(),
         StringToOrtString(modelPath).c_str(),
+        options,
+        &session);
+    status.Check();
+    _ptr = session;
+}
+
+Ortpy::Session::Session(const nanobind::bytes& modelBytes, const SessionOptions& options)
+    : OrtTypeWrapper<OrtSession, Session>(nullptr)
+{
+    OrtSession* session = nullptr;
+    Ortpy::Status status = GetApi()->CreateSessionFromArray(
+        *Ortpy::Env::GetSingleton(),
+        modelBytes.data(),
+        modelBytes.size(),
         options,
         &session);
     status.Check();
@@ -548,7 +758,9 @@ std::unordered_map<std::string, Ortpy::TensorInfo> Ortpy::Session::GetOutputInfo
 }
 
 std::unordered_map<std::string, Ortpy::NpArray> Ortpy::Session::Run(
-    const std::unordered_map<std::string, Ortpy::NpArray>& inputs) const
+    const std::unordered_map<std::string, Ortpy::NpArray>& inputs,
+    const std::optional<std::vector<std::string>>& outputNamesOpt,
+    const std::optional<std::reference_wrapper<Ortpy::RunOptions>>& runOptionsOpt) const
 {
     /** Create input values */
     std::vector<const char*> inputNamesView;
@@ -566,22 +778,35 @@ std::unordered_map<std::string, Ortpy::NpArray> Ortpy::Session::Run(
         inputValues.emplace_back(std::move(value));
     }
     /** Create output values (part 1) */
-    auto outputInfo = GetOutputInfo();
+    std::vector<std::string> outputNames;
     std::vector<const char*> outputNamesView;
-    outputNamesView.reserve(outputInfo.size());
-    /** Let ort allocate the output values as we may not known their shapes */
-    std::vector<OrtValue*> outputValues(outputInfo.size(), nullptr);
-    std::vector<Value> outputValuesWrapper;
-    outputValuesWrapper.reserve(outputInfo.size());
-    for (const auto& pair: outputInfo)
+    if (outputNamesOpt.has_value())
     {
-        outputNamesView.emplace_back(pair.first.c_str());
+        outputNames = outputNamesOpt.value();
     }
+    else
+    {
+        auto outputInfo = GetOutputInfo();
+        outputNames.reserve(outputInfo.size());
+        for (const auto& pair : outputInfo)
+        {
+            outputNames.push_back(pair.first);
+        }
+    }
+    outputNamesView.reserve(outputNames.size());
+    for (const auto& name : outputNames)
+    {
+        outputNamesView.push_back(name.c_str());
+    }
+    /** Let ort allocate the output values as we may not known their shapes */
+    std::vector<OrtValue*> outputValues(outputNamesView.size(), nullptr);
+    std::vector<Value> outputValuesWrapper;
+    outputValuesWrapper.reserve(outputNamesView.size());
     /** Run the session */
     Ortpy::Status status = GetApi()->Run(
-        _ptr, nullptr,
+        _ptr, runOptionsOpt.has_value() ? runOptionsOpt.value().get() : nullptr,
         inputNamesView.data(), inputValuesView.data(), inputs.size(),
-        outputNamesView.data(), outputInfo.size(), outputValues.data());
+        outputNamesView.data(), outputNamesView.size(), outputValues.data());
     status.Check();
     /** Create output values (part 2) */
     for (auto value : outputValues)
@@ -591,9 +816,9 @@ std::unordered_map<std::string, Ortpy::NpArray> Ortpy::Session::Run(
     }
     std::unordered_map<std::string, NpArray> outputs;
     size_t i = 0;
-    for (const auto& pair : outputInfo)
+    for (const auto& name : outputNames)
     {
-        outputs[pair.first] = outputValuesWrapper[i++];
+        outputs[name] = outputValuesWrapper[i++];
     }
     return outputs;
 }
