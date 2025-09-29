@@ -49,6 +49,8 @@ ortpy_pyi_path = build_dir / "_ortpy.pyi"
 if not ortpy_pyi_path.exists():
     raise FileNotFoundError("The type stub file is missing")
 shutil.copy(ortpy_pyi_path, wheel_build_source_dir)
+license_path = PROJECT_DIR / "LICENSE"
+shutil.copy(license_path, wheel_build_source_dir / "LICENSE")
 wheel_build_dist_info_dir = WHEEL_BUILD_DIR / f"ortpy-{get_version()}.dist-info"
 wheel_build_dist_info_dir.mkdir(parents=True, exist_ok=True)
 copy_file_with_replacements(
