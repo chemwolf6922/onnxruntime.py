@@ -37,17 +37,10 @@ _win_app_sdk_handle = WinAppSdkHandle(initialize(options=InitializeOptions.ON_NO
 
 catalog = winml.ExecutionProviderCatalog.get_default()
 
-# Quirk: Call this to create the default ort env since the WinML uses a temporary one for registering EPs.
-# This will be fixed in future releases of WinML
-import ortpy as ort
-ort.get_ep_devices()
-
 # Install and register all compatible EPs
-catalog.ensure_and_register_all_async().get()
+catalog.ensure_and_register_certified_async().get()
 
-
-# Normally you would import ortpy here
-# import ortpy as ort
+import ortpy as ort
 from argparse import ArgumentParser
 import numpy as np
 import tqdm
