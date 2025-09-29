@@ -1,36 +1,26 @@
 from pathlib import Path
-import subprocess
+import re
+import git
 
 _PROJECT_PATH = Path(__file__).parent.resolve()
+repo = git.Repo(_PROJECT_PATH)
 
 def _get_tag() -> str | None:
-    try:
-        result = subprocess.run(
-            ["git", "describe", "--exact-match", "--tags", "HEAD"],
-            capture_output=True,
-            text=True,
-            check=True
-        )
-        return result.stdout.strip()
-    except subprocess.CalledProcessError:
+    head = repo.head.commit
+    matching_tags = [tag for tag in repo.tags if tag.commit == head]
+    if not matching_tags:
         return None
+    if len(matching_tags) > 1:
+        raise RuntimeError(f"Multiple tags found for the current commit: {[tag.name for tag in matching_tags]}")
+    return matching_tags[0].name
 
 def _get_commit_id() -> str | None:
-    try:
-        result = subprocess.run(
-            ["git", "rev-parse", "--short", "HEAD"],
-            capture_output=True,
-            text=True,
-            check=True
-        )
-        return result.stdout.strip()
-    except subprocess.CalledProcessError:
-        return None
+    return repo.head.commit.hexsha[:7]
 
 def get_version() -> str:
     tag = _get_tag()
     if tag is not None:
-        tag_parts = tag.split(".")
+        tag_parts = re.sub(r'(a\d+|b\d+|rc\d+)$', '', tag).split(".")
         if len(tag_parts) >= 2:
             tag_major_minor = f"{tag_parts[0]}.{tag_parts[1]}"
             lib_version = get_lib_version()
@@ -57,7 +47,7 @@ def get_dependency_string() -> str:
     lib_version = get_lib_version()
     version_parts = lib_version.split(".")
     major_minor = f"{version_parts[0]}.{version_parts[1]}"
-    return f"pyort_lib~={major_minor}.0"
+    return f"ortpy_lib~={major_minor}.0"
 
 if __name__ == "__main__":
     print(get_version())

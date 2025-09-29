@@ -12,21 +12,21 @@
 /** Use the C API for maximum compatibility */
 #include <onnxruntime_c_api.h>
 
-#include "Pyort.h"
+#include "Ortpy.h"
 
-#ifndef PYORT_VERSION
-#define PYORT_VERSION "0.0"
+#ifndef ORTPY_VERSION
+#define ORTPY_VERSION "0.0"
 #endif
 
 static PyType_Slot sessionOptionsSlots[] = {
-    { Py_tp_traverse, (void*) &Pyort::SessionOptions::TpTraverse },
-    { Py_tp_clear, (void*) &Pyort::SessionOptions::TpClear },
+    { Py_tp_traverse, (void*) &Ortpy::SessionOptions::TpTraverse },
+    { Py_tp_clear, (void*) &Ortpy::SessionOptions::TpClear },
     { 0, nullptr }
 };
 
-NB_MODULE(_pyort, m) {
+NB_MODULE(_ortpy, m) {
     m.doc() = "onnxruntime binding build upon C API.";
-    m.attr("__version__") = PYORT_VERSION;
+    m.attr("__version__") = ORTPY_VERSION;
     m.attr("ORT_API_VERSION") = ORT_API_VERSION;
 
     nanobind::enum_<OrtHardwareDeviceType>(m, "HardwareDeviceType")
@@ -43,80 +43,80 @@ NB_MODULE(_pyort, m) {
         .value("MAX_EFFICIENCY", OrtExecutionProviderDevicePolicy_MAX_EFFICIENCY)
         .value("MIN_OVERALL_POWER", OrtExecutionProviderDevicePolicy_MIN_OVERALL_POWER);
 
-    nanobind::class_<Pyort::HardwareDevice>(m, "HardwareDevice")
-        .def_ro("type", &Pyort::HardwareDevice::type)
-        .def_ro("vendor_id", &Pyort::HardwareDevice::vendorId)
-        .def_ro("vendor", &Pyort::HardwareDevice::vendor)
-        .def_ro("device_id", &Pyort::HardwareDevice::deviceId)
-        .def_ro("metadata", &Pyort::HardwareDevice::metadata);
+    nanobind::class_<Ortpy::HardwareDevice>(m, "HardwareDevice")
+        .def_ro("type", &Ortpy::HardwareDevice::type)
+        .def_ro("vendor_id", &Ortpy::HardwareDevice::vendorId)
+        .def_ro("vendor", &Ortpy::HardwareDevice::vendor)
+        .def_ro("device_id", &Ortpy::HardwareDevice::deviceId)
+        .def_ro("metadata", &Ortpy::HardwareDevice::metadata);
 
-    nanobind::class_<Pyort::EpDevice>(m, "EpDevice")
-        .def_ro("ep_name", &Pyort::EpDevice::epName)
-        .def_ro("ep_vendor", &Pyort::EpDevice::epVendor)
-        .def_ro("ep_metadata", &Pyort::EpDevice::epMetadata)
-        .def_ro("ep_options", &Pyort::EpDevice::epOptions)
-        .def_ro("device", &Pyort::EpDevice::device);
+    nanobind::class_<Ortpy::EpDevice>(m, "EpDevice")
+        .def_ro("ep_name", &Ortpy::EpDevice::epName)
+        .def_ro("ep_vendor", &Ortpy::EpDevice::epVendor)
+        .def_ro("ep_metadata", &Ortpy::EpDevice::epMetadata)
+        .def_ro("ep_options", &Ortpy::EpDevice::epOptions)
+        .def_ro("device", &Ortpy::EpDevice::device);
 
     m.def("register_execution_provider_library", [](const std::string& name, const std::string& path) -> void {
-        Pyort::Env::GetSingleton()->RegisterExecutionProviderLibrary(name, path);
+        Ortpy::Env::GetSingleton()->RegisterExecutionProviderLibrary(name, path);
     });
 
     m.def("unregister_execution_provider_library", [](const std::string& name) -> void {
-        Pyort::Env::GetSingleton()->UnregisterExecutionProviderLibrary(name);
+        Ortpy::Env::GetSingleton()->UnregisterExecutionProviderLibrary(name);
     });
 
-    m.def("get_ep_devices", []() -> std::vector<Pyort::EpDevice> {
-        return Pyort::Env::GetSingleton()->GetEpDevices();
+    m.def("get_ep_devices", []() -> std::vector<Ortpy::EpDevice> {
+        return Ortpy::Env::GetSingleton()->GetEpDevices();
     });
 
-    nanobind::class_<Pyort::ModelCompilationOptions>(m, "ModelCompilationOptions")
+    nanobind::class_<Ortpy::ModelCompilationOptions>(m, "ModelCompilationOptions")
         .def("set_input_model_path",
-            &Pyort::ModelCompilationOptions::SetInputModelPath,
+            &Ortpy::ModelCompilationOptions::SetInputModelPath,
             nanobind::arg("path"))
         .def("set_input_model_from_buffer",
-            &Pyort::ModelCompilationOptions::SetInputModelFromBuffer,
+            &Ortpy::ModelCompilationOptions::SetInputModelFromBuffer,
             nanobind::arg("model_bytes"))
         .def("set_output_model_external_initializers_file",
-            &Pyort::ModelCompilationOptions::SetOutputModelExternalInitializersFile,
+            &Ortpy::ModelCompilationOptions::SetOutputModelExternalInitializersFile,
             nanobind::arg("path"),
             nanobind::arg("external_initializer_size_threshold"))
         .def("set_ep_context_embed_mode",
-            &Pyort::ModelCompilationOptions::SetEpContextEmbedMode,
+            &Ortpy::ModelCompilationOptions::SetEpContextEmbedMode,
             nanobind::arg("embed_context"))
         .def("compile_model_to_file",
-            &Pyort::ModelCompilationOptions::CompileModelToFile,
+            &Ortpy::ModelCompilationOptions::CompileModelToFile,
             nanobind::arg("path"))
-        .def("compile_model_to_buffer", &Pyort::ModelCompilationOptions::CompileModelToBuffer);
+        .def("compile_model_to_buffer", &Ortpy::ModelCompilationOptions::CompileModelToBuffer);
 
-    nanobind::class_<Pyort::SessionOptions>(m, "SessionOptions", nanobind::type_slots(sessionOptionsSlots))
+    nanobind::class_<Ortpy::SessionOptions>(m, "SessionOptions", nanobind::type_slots(sessionOptionsSlots))
         .def(nanobind::init<>())
         .def("append_execution_provider_v2",
-            &Pyort::SessionOptions::AppendExecutionProvider_V2,
+            &Ortpy::SessionOptions::AppendExecutionProvider_V2,
             nanobind::arg("ep_devices"),
             nanobind::arg("options"))
         .def("set_ep_selection_policy",
-            &Pyort::SessionOptions::SetEpSelectionPolicy,
+            &Ortpy::SessionOptions::SetEpSelectionPolicy,
             nanobind::arg("policy"))
         .def("set_ep_selection_policy_delegate",
-            &Pyort::SessionOptions::SetEpSelectionPolicyDelegate,
+            &Ortpy::SessionOptions::SetEpSelectionPolicyDelegate,
             nanobind::arg("delegate"))
-        .def("create_model_compilation_options", &Pyort::SessionOptions::CreateModelCompilationOptions);
+        .def("create_model_compilation_options", &Ortpy::SessionOptions::CreateModelCompilationOptions);
 
-    nanobind::class_<Pyort::TensorInfo>(m, "TensorInfo")
-        .def_ro("shape", &Pyort::TensorInfo::shape)
-        .def_ro("dimensions", &Pyort::TensorInfo::dimensions)
+    nanobind::class_<Ortpy::TensorInfo>(m, "TensorInfo")
+        .def_ro("shape", &Ortpy::TensorInfo::shape)
+        .def_ro("dimensions", &Ortpy::TensorInfo::dimensions)
         .def_prop_ro("dtype",
-            [](const Pyort::TensorInfo &self) -> std::string {
-                return Pyort::Value::NpTypeToName(self.dtype);
+            [](const Ortpy::TensorInfo &self) -> std::string {
+                return Ortpy::Value::NpTypeToName(self.dtype);
             });
 
-    nanobind::class_<Pyort::Session>(m, "Session")
-        .def(nanobind::init<const std::string&, const Pyort::SessionOptions&>(),
+    nanobind::class_<Ortpy::Session>(m, "Session")
+        .def(nanobind::init<const std::string&, const Ortpy::SessionOptions&>(),
              nanobind::arg("model_path"),
              nanobind::arg("options"))
-        .def("get_input_info", &Pyort::Session::GetInputInfo)
-        .def("get_output_info", &Pyort::Session::GetOutputInfo)
+        .def("get_input_info", &Ortpy::Session::GetInputInfo)
+        .def("get_output_info", &Ortpy::Session::GetOutputInfo)
         .def("run",
-             &Pyort::Session::Run,
+             &Ortpy::Session::Run,
              nanobind::arg("inputs"));
 }

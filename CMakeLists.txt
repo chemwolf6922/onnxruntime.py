@@ -15,60 +15,44 @@ find_package(Python 3.8 REQUIRED Interpreter Development.Module REQUIRED)
 
 execute_process(
   COMMAND "${Python_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/get_version.py"
-  OUTPUT_VARIABLE PYORT_VERSION
+  OUTPUT_VARIABLE ORTPY_VERSION
   OUTPUT_STRIP_TRAILING_WHITESPACE
-  RESULT_VARIABLE PYORT_VERSION_RESULT
+  RESULT_VARIABLE ORTPY_VERSION_RESULT
 )
 
-if(NOT PYORT_VERSION_RESULT EQUAL 0)
-  message(FATAL_ERROR "Failed to get version: ${PYORT_VERSION_RESULT}")
+if(NOT ORTPY_VERSION_RESULT EQUAL 0)
+  message(FATAL_ERROR "Failed to get version: ${ORTPY_VERSION_RESULT}")
 endif()
 
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/nanobind)
 
-# Determine target architecture
-if(CMAKE_GENERATOR_PLATFORM)
-  set(TARGET_ARCH "${CMAKE_GENERATOR_PLATFORM}")
-elseif(CMAKE_HOST_SYSTEM_PROCESSOR)
-  set(TARGET_ARCH "${CMAKE_HOST_SYSTEM_PROCESSOR}")
-endif()
-
-message(STATUS "Building for architecture: ${TARGET_ARCH}")
-
-# Set ONNXRUNTIME_ROOT based on architecture
-if(TARGET_ARCH MATCHES "AMD64|x64")
-  set(ONNXRUNTIME_ROOT "${CMAKE_SOURCE_DIR}/onnxruntime")
-elseif(TARGET_ARCH MATCHES "ARM64")
-  set(ONNXRUNTIME_ROOT "${CMAKE_SOURCE_DIR}/onnxruntime-arm64")
-else()
-  message(FATAL_ERROR "Unsupported architecture: ${TARGET_ARCH}")
-endif()
+set(ONNXRUNTIME_ROOT "${CMAKE_SOURCE_DIR}/onnxruntime")
 set(ONNXRUNTIME_LIB_DIR "${ONNXRUNTIME_ROOT}/lib")
 set(ONNXRUNTIME_LIB_NAME "onnxruntime")
 
-nanobind_add_module(_pyort MODULE
+nanobind_add_module(_ortpy MODULE
   src/cpp/Bindings.cpp
-  src/cpp/Pyort.cpp
+  src/cpp/Ortpy.cpp
 )
 
-target_include_directories(_pyort PRIVATE
+target_include_directories(_ortpy PRIVATE
   "${ONNXRUNTIME_ROOT}/include"
 )
-target_link_libraries(_pyort PRIVATE 
+target_link_libraries(_ortpy PRIVATE 
   "${ONNXRUNTIME_LIB_DIR}/${ONNXRUNTIME_LIB_NAME}.lib"
 )
 
-target_compile_definitions(_pyort PRIVATE PYORT_VERSION="${PYORT_VERSION}")
+target_compile_definitions(_ortpy PRIVATE ORTPY_VERSION="${ORTPY_VERSION}")
 
 nanobind_add_stub(
-  _pyort_stub
-  MODULE _pyort
-  OUTPUT _pyort.pyi
-  PYTHON_PATH $<TARGET_FILE_DIR:_pyort>
-  DEPENDS _pyort
+  _ortpy_stub
+  MODULE _ortpy
+  OUTPUT _ortpy.pyi
+  PYTHON_PATH $<TARGET_FILE_DIR:_ortpy>
+  DEPENDS _ortpy
 )
 
-add_custom_command(TARGET _pyort_stub POST_BUILD
+add_custom_command(TARGET _ortpy_stub POST_BUILD
   COMMAND python "${CMAKE_SOURCE_DIR}/pack_wheel.py" -b "$<CONFIG>"
   WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
   COMMENT "Packing wheel after build"

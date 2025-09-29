@@ -9,7 +9,7 @@
 /** Use the C API for maximum compatibility */
 #include <onnxruntime_c_api.h>
 
-namespace Pyort
+namespace Ortpy
 {
     using NpArray = nanobind::ndarray<nanobind::numpy, nanobind::device::cpu, nanobind::c_contig>;
 
@@ -88,7 +88,7 @@ namespace Pyort
         std::string epVendor;
         std::unordered_map<std::string, std::string> epMetadata;
         std::unordered_map<std::string, std::string> epOptions;
-        Pyort::HardwareDevice device;
+        HardwareDevice device;
         EpDevice(const OrtEpDevice* epDevice);
         EpDevice() = default;
         operator const OrtEpDevice*() const;
