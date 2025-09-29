@@ -1,4 +1,4 @@
-name: Build Validation
+name: Windows Release
 
 on:
   push:
