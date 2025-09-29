@@ -18,12 +18,6 @@ cmake ..
 cmake --build .
 ```
 
-### Build all wheels
-
-```PowerShell
-& build-all.ps1
-```
-
 ## Example
 
 Please install/reinstall the new wheels before running the examples.

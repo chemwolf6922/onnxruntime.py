@@ -1,5 +1,5 @@
 # Run a model with random inputs
-import pyort as ort
+import ortpy as ort
 import numpy as np
 from pathlib import Path
 import argparse

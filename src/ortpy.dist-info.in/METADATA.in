@@ -1,6 +1,6 @@
 Metadata-Version: 2.2
-Name: pyort
-Version: PYORT_VERSION
+Name: ortpy
+Version: ORTPY_VERSION
 Summary: ONNX runtime python binding
 Author: Feng Wang
 Classifier: Programming Language :: Python
@@ -10,11 +10,11 @@ Classifier: Programming Language :: C++
 Classifier: License :: OSI Approved :: MIT License
 Classifier: Operating System :: Microsoft :: Windows
 Project-URL: Homepage, https://github.com/chemwolf6922/onnxruntime.py
-Requires-Python: >=3.8
+Requires-Python: >=3.10
 Requires-Dist: numpy
 Provides-Extra: with-lib
-Requires-Dist: PYORT_LIB_REQUIREMENT; extra == "with-lib"
+Requires-Dist: ORTPY_LIB_REQUIREMENT; extra == "with-lib"
 Description-Content-Type: text/markdown
 
-# pyort
+# ortpy
 TODO: documentation

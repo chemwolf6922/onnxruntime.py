@@ -1,11 +1,12 @@
 from importlib import metadata
 from pathlib import Path
+from typing import Sequence, Mapping
 
-# DO NOT install pyort-lib for this example
+# DO NOT install ortpy-lib for this example
 # We'll use the packed one in WinML
 try:
-    metadata.version('pyort-lib')
-    raise RuntimeError("pyort-lib is installed. Please uninstall it for this example.")
+    metadata.version('ortpy-lib')
+    raise RuntimeError("ortpy-lib is installed. Please uninstall it for this example.")
 except metadata.PackageNotFoundError:
     pass
 
@@ -36,17 +37,10 @@ _win_app_sdk_handle = WinAppSdkHandle(initialize(options=InitializeOptions.ON_NO
 
 catalog = winml.ExecutionProviderCatalog.get_default()
 
-# Quirk: Call this to create the default ort env since the WinML uses a temporary one for registering EPs.
-# This will be fixed in future releases of WinML
-import pyort as ort
-ort.get_ep_devices()
-
 # Install and register all compatible EPs
-catalog.ensure_and_register_all_async().get()
+catalog.ensure_and_register_certified_async().get()
 
-
-# Normally you would import pyort here
-# import pyort as ort
+import ortpy as ort
 from argparse import ArgumentParser
 import numpy as np
 import tqdm
@@ -67,9 +61,9 @@ def dump_ep_device(ep_device: ort.EpDevice, index: int | None = None):
     print(f"    Device Type:   {ep_device.device.type.name}")
     print(f"    Device Vendor: {ep_device.device.vendor}")
 
-def ep_policy_delegate(ep_devices: list[ort.EpDevice],
-                                model_metadata: dict[str, str],
-                                runtime_metadata: dict[str, str],
+def ep_policy_delegate(ep_devices: Sequence[ort.EpDevice],
+                                model_metadata: Mapping[str, str],
+                                runtime_metadata: Mapping[str, str],
                                 max_eps: int) -> list[ort.EpDevice]:
     print("In EP policy delegate:")
     for (i, ep_device) in enumerate(ep_devices):

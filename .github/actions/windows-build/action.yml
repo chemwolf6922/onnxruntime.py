@@ -1,0 +1,30 @@
+name: 'Build wheels for Windows'
+description: 'Build wheels for Windows'
+inputs:
+  python-version:
+    description: 'Python version to use'
+    required: false
+    default: '3.13'
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+      shell: powershell
+
+    - name: Build wheel
+      run: |
+        cd ${{ github.workspace }}
+        Remove-Item -Recurse -Force build -ErrorAction SilentlyContinue
+        New-Item -ItemType Directory -Force -Path build
+        New-Item -ItemType Directory -Force -Path dist
+        cmake -S . -B build
+        cmake --build build --config Release
+      shell: powershell
