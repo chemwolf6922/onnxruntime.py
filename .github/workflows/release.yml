@@ -111,11 +111,13 @@ jobs:
       uses: actions/download-artifact@v4
       with:
         name: wheels-windows-x64
+        path: dist/
     
     - name: Download wheels for Windows arm64
       uses: actions/download-artifact@v4
       with:
         name: wheels-windows-arm64
+        path: dist/
 
     - name: Publish to PyPI
       uses: pypa/gh-action-pypi-publish@release/v1
