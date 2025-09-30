@@ -28,7 +28,14 @@ add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/nanobind)
 
 set(ONNXRUNTIME_ROOT "${CMAKE_SOURCE_DIR}/onnxruntime")
 set(ONNXRUNTIME_LIB_DIR "${ONNXRUNTIME_ROOT}/lib")
-set(ONNXRUNTIME_LIB_NAME "onnxruntime")
+set(ONNXRUNTIME_INCLUDE_DIR "${ONNXRUNTIME_ROOT}/include")
+
+find_library(ONNXRUNTIME_LIBRARY
+  NAMES onnxruntime
+  PATHS "${ONNXRUNTIME_LIB_DIR}"
+  NO_DEFAULT_PATH
+  REQUIRED
+)
 
 nanobind_add_module(_ortpy MODULE
   src/cpp/Bindings.cpp
@@ -36,10 +43,10 @@ nanobind_add_module(_ortpy MODULE
 )
 
 target_include_directories(_ortpy PRIVATE
-  "${ONNXRUNTIME_ROOT}/include"
+  "${ONNXRUNTIME_INCLUDE_DIR}"
 )
-target_link_libraries(_ortpy PRIVATE 
-  "${ONNXRUNTIME_LIB_DIR}/${ONNXRUNTIME_LIB_NAME}.lib"
+target_link_libraries(_ortpy PRIVATE
+  "${ONNXRUNTIME_LIBRARY}"
 )
 
 target_compile_definitions(_ortpy PRIVATE ORTPY_VERSION="${ORTPY_VERSION}")
@@ -53,7 +60,7 @@ nanobind_add_stub(
 )
 
 add_custom_command(TARGET _ortpy_stub POST_BUILD
-  COMMAND python "${CMAKE_SOURCE_DIR}/pack_wheel.py" -b "$<CONFIG>"
+  COMMAND "${Python_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/pack_wheel.py" -b "$<CONFIG>"
   WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
   COMMENT "Packing wheel after build"
 )
