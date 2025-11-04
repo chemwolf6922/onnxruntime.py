@@ -23,3 +23,19 @@ cmake --build .
 Please install/reinstall the new wheels before running the examples.
 
 Please find examples under `./examples`
+
+## Excluded APIs
+These APIs will not be implemented.
+
+* AddCustomOpDomain
+
+It's complicated to implement and does not make much sense for python inference. If possible, consider use RegisterCustomOpsLibrary instead.
+
+* StringTensor
+
+Need to learn more about the use cases.
+
+## Skipped APIs
+These APIs' implementation are skipped for now due to complexity or implementation order.
+
+* OverridableInitializer
