@@ -182,8 +182,8 @@ Ortpy::Env::Env()
 {
     Ortpy::Status status = GetApi()->CreateEnv(ORT_LOGGING_LEVEL_WARNING, "Ortpy", &_ptr);
     status.Check();
+    /** Ignore the return value. */
     status = GetApi()->DisableTelemetryEvents(_ptr);
-    status.Check();
 }
 
 void Ortpy::Env::ReleaseOrtType(OrtEnv* ptr)
