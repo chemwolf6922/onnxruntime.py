@@ -15,7 +15,6 @@ runs:
 
     - name: Build wheel
       run: |
-        cd ${{ github.workspace }}
         rm -rf build dist
         mkdir -p build dist dist-final
         cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DPython_ROOT_DIR="${{ inputs.python-root }}"
@@ -24,7 +23,6 @@ runs:
 
     - name: Repair wheels with auditwheel
       run: |
-        cd ${{ github.workspace }}
         for whl in dist/*.whl; do
           auditwheel repair "$whl" -w dist-final || cp "$whl" dist-final/
         done
