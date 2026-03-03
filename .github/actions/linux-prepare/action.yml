@@ -9,7 +9,7 @@ runs:
   using: 'composite'
   steps:
     - name: Mark workspace as safe for git
-      run: git config --global --add safe.directory "${{ github.workspace }}"
+      run: git config --global --add safe.directory "$(pwd)"
       shell: bash
 
     - name: Install GitPython
