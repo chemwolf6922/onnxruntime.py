@@ -2,7 +2,7 @@ from argparse import ArgumentParser
 from pathlib import Path
 from glob import glob
 import shutil
-from wheel.cli.pack import pack
+import subprocess
 from get_version import get_version, get_lib_version, get_dependency_string
 import platform
 import sys
@@ -118,7 +118,10 @@ copy_file_with_replacements(
         "ORTPY_WHEEL_TAG": wheel_tag
     }
 )
-pack(str(WHEEL_BUILD_DIR), str(WHEEL_OUTPUT_DIR), None)
+subprocess.run(
+    [sys.executable, "-m", "wheel", "pack", str(WHEEL_BUILD_DIR), "--dest-dir", str(WHEEL_OUTPUT_DIR)],
+    check=True,
+)
 
 # Pack the ortpy-lib wheel
 
@@ -148,4 +151,7 @@ copy_file_with_replacements(
     }
 )
 shutil.copy(PROJECT_DIR / "src" / "ortpy_lib.dist-info.in" / "top_level.txt", wheel_build_dist_info_dir)
-pack(str(WHEEL_BUILD_DIR), str(WHEEL_OUTPUT_DIR), None)
+subprocess.run(
+    [sys.executable, "-m", "wheel", "pack", str(WHEEL_BUILD_DIR), "--dest-dir", str(WHEEL_OUTPUT_DIR)],
+    check=True,
+)
