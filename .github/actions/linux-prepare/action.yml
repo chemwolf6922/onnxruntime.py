@@ -1,14 +1,8 @@
-name: 'Set up Windows build environment'
-description: 'Sets up environment for Windows'
+name: 'Set up Linux build environment'
+description: 'Sets up environment for Linux'
 runs:
   using: 'composite'
   steps:
-    - name: Setup MSBuild
-      uses: microsoft/setup-msbuild@v2
-
-    - name: Setup VS Dev Environment
-      uses: ilammy/msvc-dev-cmd@v1
-
     - name: Setup python
       uses: actions/setup-python@v4
       with:
@@ -18,9 +12,9 @@ runs:
       run: |
         python -m pip install --upgrade pip
         pip install GitPython
-      shell: powershell
+      shell: bash
 
     - name: Download ONNX Runtime
       run: |
         python get_onnxruntime.py --require-all-platforms
-      shell: powershell
+      shell: bash

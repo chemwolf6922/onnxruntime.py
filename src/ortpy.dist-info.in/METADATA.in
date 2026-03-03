@@ -9,6 +9,8 @@ Classifier: Programming Language :: Python :: Implementation :: CPython
 Classifier: Programming Language :: C++
 Classifier: License :: OSI Approved :: MIT License
 Classifier: Operating System :: Microsoft :: Windows
+Classifier: Operating System :: POSIX :: Linux
+Classifier: Operating System :: MacOS :: MacOS X
 Project-URL: Homepage, https://github.com/chemwolf6922/onnxruntime.py
 Requires-Python: >=3.10
 Requires-Dist: numpy

@@ -7,7 +7,7 @@
 1. Prepare a shell with Visual Studio 2022 tools and python enabled.
 2. [optional]Create a new python environment.
 3. `pip install -r requirements.txt`
-4. `GetOnnxruntime.ps1`
+4. `python get_onnxruntime.py`
 
 ### Build for your system
 

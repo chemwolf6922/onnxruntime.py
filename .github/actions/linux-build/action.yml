@@ -1,0 +1,37 @@
+name: 'Build wheels for Linux'
+description: 'Build wheels for Linux'
+inputs:
+  python-version:
+    description: 'Python version to use'
+    required: false
+    default: '3.13'
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt auditwheel patchelf
+      shell: bash
+
+    - name: Build wheel
+      run: |
+        cd ${{ github.workspace }}
+        rm -rf build dist
+        mkdir -p build dist dist-final
+        cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+        cmake --build build
+      shell: bash
+
+    - name: Repair wheels with auditwheel
+      run: |
+        cd ${{ github.workspace }}
+        for whl in dist/*.whl; do
+          auditwheel repair "$whl" -w dist-final --plat manylinux_2_17_$(uname -m) || cp "$whl" dist-final/
+        done
+      shell: bash
