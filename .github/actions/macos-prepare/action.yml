@@ -18,3 +18,5 @@ runs:
       run: |
         python get_onnxruntime.py --require-all-platforms
       shell: bash
+      env:
+        GITHUB_TOKEN: ${{ github.token }}

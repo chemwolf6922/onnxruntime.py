@@ -8,6 +8,10 @@ inputs:
 runs:
   using: 'composite'
   steps:
+    - name: Mark workspace as safe for git
+      run: git config --global --add safe.directory "${{ github.workspace }}"
+      shell: bash
+
     - name: Install GitPython
       run: |
         ${{ inputs.python-root }}/bin/python -m pip install --upgrade pip
@@ -18,3 +22,5 @@ runs:
       run: |
         ${{ inputs.python-root }}/bin/python get_onnxruntime.py --require-all-platforms
       shell: bash
+      env:
+        GITHUB_TOKEN: ${{ github.token }}

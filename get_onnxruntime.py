@@ -1,5 +1,6 @@
 import argparse
 import json
+import os
 import shutil
 import tarfile
 import tempfile
@@ -85,6 +86,9 @@ def validate_version_hint(version_hint: str) -> None:
 def fetch_releases(max_releases: int) -> List[GitHubRelease]:
     url = f"https://api.github.com/repos/microsoft/onnxruntime/releases?per_page={max_releases}"
     request = Request(url)
+    github_token = os.environ.get("GITHUB_TOKEN")
+    if github_token:
+        request.add_header("Authorization", f"token {github_token}")
     with urlopen(request) as response:
         payload = response.read()
     data = json.loads(payload)
