@@ -32,20 +32,22 @@ jobs:
   build-validation-linux:
     name: Build Validation (Linux)
     runs-on: ubuntu-latest
+    container:
+      image: quay.io/pypa/manylinux_2_28_x86_64
 
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
       with:
         submodules: recursive
-    
+
     - name: Setup build environment
       uses: ./.github/actions/linux-prepare
-    
+
     - name: Build wheels
       uses: ./.github/actions/linux-build
       with:
-        python-version: '3.14'
+        python-root: '/opt/python/cp314-cp314'
 
   build-validation-macos:
     name: Build Validation (macOS)

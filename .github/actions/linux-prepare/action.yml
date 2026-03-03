@@ -1,20 +1,20 @@
 name: 'Set up Linux build environment'
-description: 'Sets up environment for Linux'
+description: 'Sets up environment for Linux (inside manylinux container)'
+inputs:
+  python-root:
+    description: 'Path to the Python installation root (e.g. /opt/python/cp313-cp313)'
+    required: false
+    default: '/opt/python/cp313-cp313'
 runs:
   using: 'composite'
   steps:
-    - name: Setup python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.13'
-
     - name: Install GitPython
       run: |
-        python -m pip install --upgrade pip
-        pip install GitPython
+        ${{ inputs.python-root }}/bin/python -m pip install --upgrade pip
+        ${{ inputs.python-root }}/bin/python -m pip install GitPython
       shell: bash
 
     - name: Download ONNX Runtime
       run: |
-        python get_onnxruntime.py --require-all-platforms
+        ${{ inputs.python-root }}/bin/python get_onnxruntime.py --require-all-platforms
       shell: bash

@@ -1,22 +1,16 @@
 name: 'Build wheels for Linux'
 description: 'Build wheels for Linux'
 inputs:
-  python-version:
-    description: 'Python version to use'
-    required: false
-    default: '3.13'
+  python-root:
+    description: 'Path to the Python installation root (e.g. /opt/python/cp313-cp313)'
+    required: true
 runs:
   using: 'composite'
   steps:
-    - name: Setup python
-      uses: actions/setup-python@v4
-      with:
-        python-version: ${{ inputs.python-version }}
-
     - name: Install Python dependencies
       run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt auditwheel patchelf
+        ${{ inputs.python-root }}/bin/python -m pip install --upgrade pip
+        ${{ inputs.python-root }}/bin/python -m pip install -r requirements.txt
       shell: bash
 
     - name: Build wheel
@@ -24,7 +18,7 @@ runs:
         cd ${{ github.workspace }}
         rm -rf build dist
         mkdir -p build dist dist-final
-        cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+        cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DPython_ROOT_DIR="${{ inputs.python-root }}"
         cmake --build build
       shell: bash
 
@@ -32,6 +26,6 @@ runs:
       run: |
         cd ${{ github.workspace }}
         for whl in dist/*.whl; do
-          auditwheel repair "$whl" -w dist-final --plat manylinux_2_17_$(uname -m) || cp "$whl" dist-final/
+          auditwheel repair "$whl" -w dist-final || cp "$whl" dist-final/
         done
       shell: bash
