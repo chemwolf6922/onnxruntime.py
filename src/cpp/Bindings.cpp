@@ -95,6 +95,17 @@ NB_MODULE(_ortpy, m) {
         .def_ro("ep_options", &Ortpy::EpDevice::epOptions)
         .def_ro("device", &Ortpy::EpDevice::device);
 
+#if ORT_API_VERSION >= 24
+    nanobind::class_<Ortpy::EpAssignedNode>(m, "EpAssignedNode")
+        .def_ro("name", &Ortpy::EpAssignedNode::name)
+        .def_ro("domain", &Ortpy::EpAssignedNode::domain)
+        .def_ro("operator_type", &Ortpy::EpAssignedNode::operatorType);
+
+    nanobind::class_<Ortpy::EpAssignedSubgraph>(m, "EpAssignedSubgraph")
+        .def_ro("ep_name", &Ortpy::EpAssignedSubgraph::epName)
+        .def_ro("nodes", &Ortpy::EpAssignedSubgraph::nodes);
+#endif
+
     m.def("register_execution_provider_library", [](const std::string& name, const std::string& path) -> void {
         Ortpy::Env::GetSingleton()->RegisterExecutionProviderLibrary(name, path);
     });
@@ -269,6 +280,13 @@ NB_MODULE(_ortpy, m) {
         .def("get_model_metadata", &Ortpy::Session::GetModelMetadata)
         .def("end_profiling", &Ortpy::Session::EndProfiling)
         .def("get_profiling_start_time_ns", &Ortpy::Session::GetProfilingStartTimeNs)
+        .def("get_memory_info_for_inputs", &Ortpy::Session::GetMemoryInfoForInputs)
+        .def("get_memory_info_for_outputs", &Ortpy::Session::GetMemoryInfoForOutputs)
+        .def("get_ep_device_for_inputs", &Ortpy::Session::GetEpDeviceForInputs)
+#if ORT_API_VERSION >= 24
+        .def("get_ep_device_for_outputs", &Ortpy::Session::GetEpDeviceForOutputs)
+        .def("get_ep_graph_assignment_info", &Ortpy::Session::GetEpGraphAssignmentInfo)
+#endif
         .def("create_io_binding", &Ortpy::Session::CreateIoBinding,
             nanobind::keep_alive<0, 1>())
         .def("run_with_binding",

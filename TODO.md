@@ -9,7 +9,7 @@
 |---|---|
 | **Env** | `CreateEnv`, `ReleaseEnv`, `DisableTelemetryEvents`, `RegisterExecutionProviderLibrary`, `UnregisterExecutionProviderLibrary`, `GetEpDevices`, `UpdateEnvWithCustomLogLevel` |
 | **SessionOptions** | Create/Release, `SetOptimizedModelFilePath`, `SetSessionExecutionMode`, Enable/Disable Profiling, Enable/Disable MemPattern, Enable/Disable CpuMemArena, `SetSessionLogId`, `SetSessionLogVerbosityLevel`, `SetSessionLogSeverityLevel`, `SetSessionGraphOptimizationLevel`, `SetIntraOpNumThreads`, `SetInterOpNumThreads`, `RegisterCustomOpsLibrary` (V1), `SessionOptionsAppendExecutionProvider_V2`, `SessionOptionsSetEpSelectionPolicy`, `SessionOptionsSetEpSelectionPolicyDelegate` |
-| **Session** | `CreateSession`, `CreateSessionFromArray`, `Run`, `RunWithBinding`, `SessionGetInputCount/Name/TypeInfo`, `SessionGetOutputCount/Name/TypeInfo`, `SessionGetModelMetadata`, `SessionEndProfiling`, `SessionGetProfilingStartTimeNs` |
+| **Session** | `CreateSession`, `CreateSessionFromArray`, `Run`, `RunWithBinding`, `SessionGetInputCount/Name/TypeInfo`, `SessionGetOutputCount/Name/TypeInfo`, `SessionGetModelMetadata`, `SessionEndProfiling`, `SessionGetProfilingStartTimeNs`, `SessionGetMemoryInfoForInputs/Outputs`, `SessionGetEpDeviceForInputs/Outputs` (v24), `Session_GetEpGraphAssignmentInfo` (v24) |
 | **RunOptions** | Create/Release, Set/Get RunLogVerbosityLevel, Set/Get RunLogSeverityLevel, Set/Get RunTag, Set/Unset Terminate |
 | **Value/Tensor** | `CreateTensorAsOrtValue`, `CreateTensorWithDataAsOrtValue`, `GetTensorMutableData`, `GetTensorTypeAndShape`, `GetTensorElementType`, `GetDimensionsCount`, `GetDimensions`, `GetSymbolicDimensions`, `ReleaseValue` |
 | **TypeInfo** | `CastTypeInfoToTensorInfo`, `ReleaseTypeInfo`, `ReleaseTensorTypeAndShapeInfo` |
@@ -24,22 +24,7 @@
 
 ## Missing APIs — Inference-Related, Normal Python Use
 
-### Group 1: Session — Additional Queries (Medium Priority)
-
-Useful for introspection of loaded sessions.
-
-| C API | Description | Status | API Ver |
-|---|---|---|---|
-| `SessionGetOverridableInitializerCount` | Count of overridable initializers | | ≤10 |
-| `SessionGetOverridableInitializerName` | Name of an overridable initializer | | ≤10 |
-| `SessionGetOverridableInitializerTypeInfo` | TypeInfo of overridable initializer | | ≤10 |
-| `SessionGetMemoryInfoForInputs` | Get `OrtMemoryInfo` for each input | | 23 |
-| `SessionGetMemoryInfoForOutputs` | Get `OrtMemoryInfo` for each output | | 23 |
-| `SessionGetEpDeviceForInputs` | Get `OrtEpDevice` assigned per input | | 23 |
-| `SessionGetEpDeviceForOutputs` | Get `OrtEpDevice` assigned per output | | **24** |
-| `Session_GetEpGraphAssignmentInfo` | Get EP graph assignment info | | **24** |
-
-### Group 2: SessionOptions — Additional Configuration (Medium Priority)
+### Group 1: SessionOptions — Additional Configuration (Medium Priority)
 
 Commonly needed for advanced session setup.
 
@@ -63,7 +48,7 @@ Commonly needed for advanced session setup.
 | `SetDeterministicCompute` | Force deterministic GPU compute | | 17 |
 | `SessionOptionsSetLoadCancellationFlag` | Set flag to cancel session loading | | 22 |
 
-### Group 3: RunOptions — Additional Configuration (Medium Priority)
+### Group 2: RunOptions — Additional Configuration (Medium Priority)
 
 | C API | Description | Status | API Ver |
 |---|---|---|---|
@@ -71,7 +56,7 @@ Commonly needed for advanced session setup.
 | `GetRunConfigEntry` | Get config entry from run options | | 23 |
 | `RunOptionsSetSyncStream` | Set `OrtSyncStream` on run options | | **24** |
 
-### Group 4: Value/Tensor — Extended Operations (Medium Priority)
+### Group 3: Value/Tensor — Extended Operations (Medium Priority)
 
 String tensor support, additional tensor queries, and non-tensor value support (maps, sequences — rarely used in practice).
 
@@ -96,13 +81,13 @@ String tensor support, additional tensor queries, and non-tensor value support (
 | `CreateValue` | Create a map/sequence OrtValue | | ≤10 |
 | `CreateTensorWithDataAndDeleterAsOrtValue` | Create tensor with custom deleter | | 22 |
 
-### Group 5: Async Execution (Low Priority)
+### Group 4: Async Execution (Low Priority)
 
 | C API | Description | Status | API Ver |
 |---|---|---|---|
 | `RunAsync` | Run model asynchronously | | 16 |
 
-### Group 6: TypeInfo — Extended (Medium Priority)
+### Group 5: TypeInfo — Extended (Medium Priority)
 
 Maps, sequences, optionals type introspection.
 
@@ -119,7 +104,7 @@ Maps, sequences, optionals type introspection.
 | `GetOptionalContainedTypeInfo` | Get contained type of optional | | 15 |
 | `GetTensorShapeElementCount` | Get total element count | | ≤10 |
 
-### Group 7: Allocator — Extended (Low Priority)
+### Group 6: Allocator — Extended (Low Priority)
 
 | C API | Description | Status | API Ver |
 |---|---|---|---|
@@ -128,7 +113,7 @@ Maps, sequences, optionals type introspection.
 | `AllocatorFree` | Free memory | | ≤10 |
 | `AllocatorGetInfo` | Get allocator's MemoryInfo | | ≤10 |
 
-### Group 8: Legacy Per-EP Registration (Low Priority)
+### Group 7: Legacy Per-EP Registration (Low Priority)
 
 > The project already uses the V2 EP API (`SessionOptionsAppendExecutionProvider_V2` + `GetEpDevices`). These are the older per-EP APIs. Whether to bind them depends on backward compatibility goals.
 
@@ -150,7 +135,7 @@ Maps, sequences, optionals type introspection.
 | `SetEpDynamicOptions` | Set dynamic EP options at runtime | | 20 |
 | All `Create/Update/Get/Release*ProviderOptions` | Provider-specific option management | | varies |
 
-### Group 9: SyncStream / Data Transfer / Shared Allocator (Low Priority)
+### Group 8: SyncStream / Data Transfer / Shared Allocator (Low Priority)
 
 | C API | Description | Status | API Ver |
 |---|---|---|---|
@@ -161,7 +146,7 @@ Maps, sequences, optionals type introspection.
 | `GetSharedAllocator` | Get shared allocator from env | | 23 |
 | `ReleaseSharedAllocator` | Release shared allocator | | 23 |
 
-### Group 10: EpDevice / HardwareDevice — Extended Query (Medium Priority)
+### Group 9: EpDevice / HardwareDevice — Extended Query (Medium Priority)
 
 | C API | Description | Status | API Ver |
 |---|---|---|---|
@@ -173,7 +158,7 @@ Maps, sequences, optionals type introspection.
 | `GetCompatibilityInfoFromModel` | Check compatibility from model file | | **24** |
 | `GetCompatibilityInfoFromModelBytes` | Check compatibility from model bytes | | **24** |
 
-### Group 11: LoRA Adapter (Medium Priority)
+### Group 10: LoRA Adapter (Medium Priority)
 
 | C API | Description | Status | API Ver |
 |---|---|---|---|
@@ -181,7 +166,7 @@ Maps, sequences, optionals type introspection.
 | `CreateLoraAdapterFromArray` | Create LoRA adapter from byte array | | 20 |
 | `RunOptionsAddActiveLoraAdapter` | Activate LoRA adapter for a run | | 20 |
 
-### Group 12: CompileApi — Additional Options (Medium Priority)
+### Group 11: CompileApi — Additional Options (Medium Priority)
 
 | C API | Description | Status | API Ver |
 |---|---|---|---|
@@ -204,6 +189,16 @@ Maps, sequences, optionals type introspection.
 ---
 
 ## Missing APIs — NOT for Normal Python Use
+
+### Overridable Initializers
+
+> Niche feature. Most models don't use overridable initializers.
+
+| C API | Description |
+|---|---|
+| `SessionGetOverridableInitializerCount` | Count of overridable initializers |
+| `SessionGetOverridableInitializerName` | Name of an overridable initializer |
+| `SessionGetOverridableInitializerTypeInfo` | TypeInfo of overridable initializer |
 
 ### Env Extended
 
@@ -298,18 +293,17 @@ Maps, sequences, optionals type introspection.
 
 | Priority | Group | API Count | Use Case |
 |---|---|---|---|
-| **Medium** | Group 4 — Value/Tensor extended | 18 | String tensors, map/sequence values (non-tensor values are rare) |
-| **Medium** | Group 2 — SessionOptions extended | 17 | Free dim overrides, config entries, custom ops V2 |
-| **Medium** | Group 1 — Session queries | 8 | Per-input memory/device info, EP assignment |
-| **Medium** | Group 3 — RunOptions extended | 3 | Config entries, sync stream |
-| **Medium** | Group 6 — TypeInfo extended | 10 | Map/sequence/optional type introspection |
-| **Medium** | Group 10 — EpDevice/HW extended | 7 | Compatibility checks, hardware enumeration |
-| **Medium** | Group 11 — LoRA Adapter | 3 | LoRA fine-tuned model inference |
-| **Medium** | Group 12 — CompileApi extended | 5 | Advanced compilation options |
-| **Low** | Group 5 — Async execution | 1 | Async inference |
-| **Low** | Group 7 — Allocator extended | 4 | Custom allocation |
-| **Low** | Group 8 — Legacy per-EP registration | ~25 | Old-style EP setup (project uses V2) |
-| **Low** | Group 9 — SyncStream/transfer | 6 | Cross-device tensor copies |
+| **Medium** | Group 3 — Value/Tensor extended | 18 | String tensors, map/sequence values (non-tensor values are rare) |
+| **Medium** | Group 1 — SessionOptions extended | 17 | Free dim overrides, config entries, custom ops V2 |
+| **Medium** | Group 2 — RunOptions extended | 3 | Config entries, sync stream |
+| **Medium** | Group 5 — TypeInfo extended | 10 | Map/sequence/optional type introspection |
+| **Medium** | Group 9 — EpDevice/HW extended | 7 | Compatibility checks, hardware enumeration |
+| **Medium** | Group 10 — LoRA Adapter | 3 | LoRA fine-tuned model inference |
+| **Medium** | Group 11 — CompileApi extended | 5 | Advanced compilation options |
+| **Low** | Group 4 — Async execution | 1 | Async inference |
+| **Low** | Group 6 — Allocator extended | 4 | Custom allocation |
+| **Low** | Group 7 — Legacy per-EP registration | ~25 | Old-style EP setup (project uses V2) |
+| **Low** | Group 8 — SyncStream/transfer | 6 | Cross-device tensor copies |
 | N/A | Training APIs | ~40+ | **Not inference** |
 | N/A | Custom Op / KernelInfo / KernelContext | ~40+ | **Not for normal Python use** |
 | N/A | EP implementation | ~60+ | **Not for normal Python use** |
@@ -318,3 +312,4 @@ Maps, sequences, optionals type introspection.
 | N/A | Sparse Tensor | ~14 | **Niche** |
 | N/A | Runtime hosting / Allocator registration | ~15 | **Not for normal Python use** |
 | N/A | Env extended | 3 | **Not supported** |
+| N/A | Overridable Initializers | 3 | **Niche — not supported** |

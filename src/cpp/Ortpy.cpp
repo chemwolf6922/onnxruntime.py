@@ -1473,3 +1473,152 @@ void Ortpy::Session::RunWithBinding(
     Ortpy::Status status = GetApi()->RunWithBinding(_ptr, runOptions, binding);
     status.Check();
 }
+
+std::unordered_map<std::string, Ortpy::MemoryInfo> Ortpy::Session::GetMemoryInfoForInputs() const
+{
+    size_t inputCount = 0;
+    Ortpy::Status status = GetApi()->SessionGetInputCount(_ptr, &inputCount);
+    status.Check();
+    std::vector<const OrtMemoryInfo*> memInfos(inputCount, nullptr);
+    status = GetApi()->SessionGetMemoryInfoForInputs(_ptr, memInfos.data(), inputCount);
+    status.Check();
+    auto allocator = GetAllocator();
+    std::unordered_map<std::string, MemoryInfo> result;
+    for (size_t i = 0; i < inputCount; ++i)
+    {
+        char* nameRaw = nullptr;
+        status = GetApi()->SessionGetInputName(_ptr, i, allocator, &nameRaw);
+        status.Check();
+        std::string name{ nameRaw };
+        allocator->Free(allocator, nameRaw);
+        /** Create a copy of the borrowed MemoryInfo */
+        const char* miName = nullptr;
+        GetApi()->MemoryInfoGetName(memInfos[i], &miName);
+        OrtAllocatorType miAllocType;
+        GetApi()->MemoryInfoGetType(memInfos[i], &miAllocType);
+        int miId = 0;
+        GetApi()->MemoryInfoGetId(memInfos[i], &miId);
+        OrtMemType miMemType;
+        GetApi()->MemoryInfoGetMemType(memInfos[i], &miMemType);
+        result.emplace(name, MemoryInfo{ miName ? miName : "Cpu", miAllocType, miId, miMemType });
+    }
+    return result;
+}
+
+std::unordered_map<std::string, Ortpy::MemoryInfo> Ortpy::Session::GetMemoryInfoForOutputs() const
+{
+    size_t outputCount = 0;
+    Ortpy::Status status = GetApi()->SessionGetOutputCount(_ptr, &outputCount);
+    status.Check();
+    std::vector<const OrtMemoryInfo*> memInfos(outputCount, nullptr);
+    status = GetApi()->SessionGetMemoryInfoForOutputs(_ptr, memInfos.data(), outputCount);
+    status.Check();
+    auto allocator = GetAllocator();
+    std::unordered_map<std::string, MemoryInfo> result;
+    for (size_t i = 0; i < outputCount; ++i)
+    {
+        char* nameRaw = nullptr;
+        status = GetApi()->SessionGetOutputName(_ptr, i, allocator, &nameRaw);
+        status.Check();
+        std::string name{ nameRaw };
+        allocator->Free(allocator, nameRaw);
+        const char* miName = nullptr;
+        GetApi()->MemoryInfoGetName(memInfos[i], &miName);
+        OrtAllocatorType miAllocType;
+        GetApi()->MemoryInfoGetType(memInfos[i], &miAllocType);
+        int miId = 0;
+        GetApi()->MemoryInfoGetId(memInfos[i], &miId);
+        OrtMemType miMemType;
+        GetApi()->MemoryInfoGetMemType(memInfos[i], &miMemType);
+        result.emplace(name, MemoryInfo{ miName ? miName : "Cpu", miAllocType, miId, miMemType });
+    }
+    return result;
+}
+
+std::unordered_map<std::string, Ortpy::EpDevice> Ortpy::Session::GetEpDeviceForInputs() const
+{
+    size_t inputCount = 0;
+    Ortpy::Status status = GetApi()->SessionGetInputCount(_ptr, &inputCount);
+    status.Check();
+    std::vector<const OrtEpDevice*> epDevices(inputCount, nullptr);
+    status = GetApi()->SessionGetEpDeviceForInputs(_ptr, epDevices.data(), inputCount);
+    status.Check();
+    auto allocator = GetAllocator();
+    std::unordered_map<std::string, EpDevice> result;
+    for (size_t i = 0; i < inputCount; ++i)
+    {
+        if (epDevices[i] == nullptr) continue;
+        char* nameRaw = nullptr;
+        status = GetApi()->SessionGetInputName(_ptr, i, allocator, &nameRaw);
+        status.Check();
+        std::string name{ nameRaw };
+        allocator->Free(allocator, nameRaw);
+        result.emplace(name, EpDevice{ epDevices[i] });
+    }
+    return result;
+}
+
+#if ORT_API_VERSION >= 24
+std::unordered_map<std::string, Ortpy::EpDevice> Ortpy::Session::GetEpDeviceForOutputs() const
+{
+    size_t outputCount = 0;
+    Ortpy::Status status = GetApi()->SessionGetOutputCount(_ptr, &outputCount);
+    status.Check();
+    std::vector<const OrtEpDevice*> epDevices(outputCount, nullptr);
+    status = GetApi()->SessionGetEpDeviceForOutputs(_ptr, epDevices.data(), outputCount);
+    status.Check();
+    auto allocator = GetAllocator();
+    std::unordered_map<std::string, EpDevice> result;
+    for (size_t i = 0; i < outputCount; ++i)
+    {
+        if (epDevices[i] == nullptr) continue;
+        char* nameRaw = nullptr;
+        status = GetApi()->SessionGetOutputName(_ptr, i, allocator, &nameRaw);
+        status.Check();
+        std::string name{ nameRaw };
+        allocator->Free(allocator, nameRaw);
+        result.emplace(name, EpDevice{ epDevices[i] });
+    }
+    return result;
+}
+
+std::vector<Ortpy::EpAssignedSubgraph> Ortpy::Session::GetEpGraphAssignmentInfo() const
+{
+    const OrtEpAssignedSubgraph* const* subgraphsRaw = nullptr;
+    size_t numSubgraphs = 0;
+    Ortpy::Status status = GetApi()->Session_GetEpGraphAssignmentInfo(_ptr, &subgraphsRaw, &numSubgraphs);
+    status.Check();
+    std::vector<EpAssignedSubgraph> result;
+    result.reserve(numSubgraphs);
+    for (size_t i = 0; i < numSubgraphs; ++i)
+    {
+        EpAssignedSubgraph subgraph;
+        const char* epName = nullptr;
+        status = GetApi()->EpAssignedSubgraph_GetEpName(subgraphsRaw[i], &epName);
+        status.Check();
+        subgraph.epName = epName ? epName : "";
+        const OrtEpAssignedNode* const* nodesRaw = nullptr;
+        size_t numNodes = 0;
+        status = GetApi()->EpAssignedSubgraph_GetNodes(subgraphsRaw[i], &nodesRaw, &numNodes);
+        status.Check();
+        subgraph.nodes.reserve(numNodes);
+        for (size_t j = 0; j < numNodes; ++j)
+        {
+            EpAssignedNode node;
+            const char* val = nullptr;
+            status = GetApi()->EpAssignedNode_GetName(nodesRaw[j], &val);
+            status.Check();
+            node.name = val ? val : "";
+            status = GetApi()->EpAssignedNode_GetDomain(nodesRaw[j], &val);
+            status.Check();
+            node.domain = val ? val : "";
+            status = GetApi()->EpAssignedNode_GetOperatorType(nodesRaw[j], &val);
+            status.Check();
+            node.operatorType = val ? val : "";
+            subgraph.nodes.push_back(std::move(node));
+        }
+        result.push_back(std::move(subgraph));
+    }
+    return result;
+}
+#endif /** ORT_API_VERSION >= 24 */

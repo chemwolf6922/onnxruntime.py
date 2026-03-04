@@ -230,6 +230,21 @@ namespace Ortpy
     class MemoryInfo;
     class IoBinding;
 
+#if ORT_API_VERSION >= 24
+    struct EpAssignedNode
+    {
+        std::string name;
+        std::string domain;
+        std::string operatorType;
+    };
+
+    struct EpAssignedSubgraph
+    {
+        std::string epName;
+        std::vector<EpAssignedNode> nodes;
+    };
+#endif
+
     class Session : public OrtTypeWrapper<OrtSession, Session>
     {
     public:
@@ -242,6 +257,13 @@ namespace Ortpy
         ModelMetadata GetModelMetadata() const;
         std::string EndProfiling() const;
         uint64_t GetProfilingStartTimeNs() const;
+        std::unordered_map<std::string, MemoryInfo> GetMemoryInfoForInputs() const;
+        std::unordered_map<std::string, MemoryInfo> GetMemoryInfoForOutputs() const;
+        std::unordered_map<std::string, EpDevice> GetEpDeviceForInputs() const;
+#if ORT_API_VERSION >= 24
+        std::unordered_map<std::string, EpDevice> GetEpDeviceForOutputs() const;
+        std::vector<EpAssignedSubgraph> GetEpGraphAssignmentInfo() const;
+#endif
         IoBinding CreateIoBinding() const;
         void RunWithBinding(
             IoBinding& binding,
