@@ -29,6 +29,12 @@ jobs:
       with:
         python-version: '3.14'
 
+    - name: Test wheels
+      run: |
+        pip install (Get-ChildItem dist/*.whl | Select-Object -ExpandProperty FullName)
+        pytest test/ -v
+      shell: powershell
+
   build-validation-linux:
     name: Build Validation (Linux)
     runs-on: ubuntu-latest
@@ -49,6 +55,12 @@ jobs:
       with:
         python-root: '/opt/python/cp314-cp314'
 
+    - name: Test wheels
+      run: |
+        /opt/python/cp314-cp314/bin/python -m pip install dist/*.whl
+        /opt/python/cp314-cp314/bin/python -m pytest test/ -v
+      shell: bash
+
   build-validation-macos:
     name: Build Validation (macOS)
     runs-on: macos-latest
@@ -66,3 +78,9 @@ jobs:
       uses: ./.github/actions/macos-build
       with:
         python-version: '3.14'
+
+    - name: Test wheels
+      run: |
+        pip install dist/*.whl
+        pytest test/ -v
+      shell: bash
