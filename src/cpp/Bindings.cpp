@@ -58,6 +58,16 @@ NB_MODULE(_ortpy, m) {
         .value("MAX_EFFICIENCY", OrtExecutionProviderDevicePolicy_MAX_EFFICIENCY)
         .value("MIN_OVERALL_POWER", OrtExecutionProviderDevicePolicy_MIN_OVERALL_POWER);
 
+    nanobind::enum_<OrtAllocatorType>(m, "AllocatorType")
+        .value("INVALID", OrtInvalidAllocator)
+        .value("DEVICE", OrtDeviceAllocator)
+        .value("ARENA", OrtArenaAllocator);
+
+    nanobind::enum_<OrtMemType>(m, "MemType")
+        .value("CPU_INPUT", OrtMemTypeCPUInput)
+        .value("CPU_OUTPUT", OrtMemTypeCPUOutput)
+        .value("DEFAULT", OrtMemTypeDefault);
+
     nanobind::class_<Ortpy::HardwareDevice>(m, "HardwareDevice")
         .def_ro("type", &Ortpy::HardwareDevice::type)
         .def_ro("vendor_id", &Ortpy::HardwareDevice::vendorId)
@@ -83,6 +93,46 @@ NB_MODULE(_ortpy, m) {
     m.def("get_ep_devices", []() -> std::vector<Ortpy::EpDevice> {
         return Ortpy::Env::GetSingleton()->GetEpDevices();
     });
+
+    nanobind::class_<Ortpy::Value>(m, "Value")
+        .def(nanobind::init<const Ortpy::NpArray&>(),
+            nanobind::arg("numpy_array"))
+        .def("numpy", &Ortpy::Value::ToNumpy)
+        .def_prop_ro("shape", &Ortpy::Value::GetShape)
+        .def_prop_ro("dtype",
+            [](const Ortpy::Value& self) -> std::string {
+                return Ortpy::Value::NpTypeToName(
+                    Ortpy::Value::OrtTypeToNpType(self.GetType()));
+            });
+
+    nanobind::class_<Ortpy::MemoryInfo>(m, "MemoryInfo")
+        .def(nanobind::init<>())
+        .def(nanobind::init<const std::string&, OrtAllocatorType, int, OrtMemType>(),
+            nanobind::arg("name"),
+            nanobind::arg("allocator_type"),
+            nanobind::arg("device_id"),
+            nanobind::arg("mem_type"))
+        .def_prop_ro("name", &Ortpy::MemoryInfo::GetName)
+        .def_prop_ro("device_id", &Ortpy::MemoryInfo::GetDeviceId);
+
+    nanobind::class_<Ortpy::IoBinding>(m, "IoBinding")
+        .def("bind_input",
+            &Ortpy::IoBinding::BindInput,
+            nanobind::arg("name"),
+            nanobind::arg("value"))
+        .def("bind_output",
+            &Ortpy::IoBinding::BindOutput,
+            nanobind::arg("name"),
+            nanobind::arg("value"))
+        .def("bind_output_to_device",
+            &Ortpy::IoBinding::BindOutputToDevice,
+            nanobind::arg("name"),
+            nanobind::arg("memory_info"))
+        .def("get_outputs", &Ortpy::IoBinding::GetOutputs)
+        .def("clear_inputs", &Ortpy::IoBinding::ClearInputs)
+        .def("clear_outputs", &Ortpy::IoBinding::ClearOutputs)
+        .def("synchronize_inputs", &Ortpy::IoBinding::SynchronizeInputs)
+        .def("synchronize_outputs", &Ortpy::IoBinding::SynchronizeOutputs);
 
     nanobind::class_<Ortpy::ModelCompilationOptions>(m, "ModelCompilationOptions")
         .def("set_input_model_path",
@@ -198,6 +248,12 @@ NB_MODULE(_ortpy, m) {
         .def("get_model_metadata", &Ortpy::Session::GetModelMetadata)
         .def("end_profiling", &Ortpy::Session::EndProfiling)
         .def("get_profiling_start_time_ns", &Ortpy::Session::GetProfilingStartTimeNs)
+        .def("create_io_binding", &Ortpy::Session::CreateIoBinding,
+            nanobind::keep_alive<0, 1>())
+        .def("run_with_binding",
+            &Ortpy::Session::RunWithBinding,
+            nanobind::arg("io_binding"),
+            nanobind::arg("run_options") = std::nullopt)
         .def("run",
             &Ortpy::Session::Run,
             nanobind::arg("inputs"),

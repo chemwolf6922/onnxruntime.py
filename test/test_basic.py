@@ -49,6 +49,6 @@ def test_add_model() -> None:
         outputs = session.run({"A": a, "B": b})
 
         assert "C" in outputs
-        c = outputs["C"]
+        c = outputs["C"].numpy()
         expected = np.array([4.0, 6.0], dtype=np.float32)
         np.testing.assert_allclose(c, expected, rtol=1e-5)

@@ -225,6 +225,10 @@ namespace Ortpy
         void UnsetTerminate();
     };
 
+    class Value;
+    class MemoryInfo;
+    class IoBinding;
+
     class Session : public OrtTypeWrapper<OrtSession, Session>
     {
     public:
@@ -237,7 +241,11 @@ namespace Ortpy
         ModelMetadata GetModelMetadata() const;
         std::string EndProfiling() const;
         uint64_t GetProfilingStartTimeNs() const;
-        std::unordered_map<std::string, NpArray> Run(
+        IoBinding CreateIoBinding() const;
+        void RunWithBinding(
+            IoBinding& binding,
+            const std::optional<std::reference_wrapper<RunOptions>>& runOptions) const;
+        std::unordered_map<std::string, Value> Run(
             const std::unordered_map<std::string, NpArray>& inputs,
             const std::optional<std::vector<std::string>>& outputNames,
             const std::optional<std::reference_wrapper<RunOptions>>& runOptions) const;
@@ -255,7 +263,7 @@ namespace Ortpy
         Value(const NpArray& NpArray);
         Value(const std::vector<int64_t>& shape, ONNXTensorElementDataType type);
 
-        operator NpArray() const;
+        NpArray ToNumpy() const;
         operator OrtValue*() const;
         ONNXTensorElementDataType GetType() const;
         std::vector<int64_t> GetShape() const;
@@ -289,5 +297,27 @@ namespace Ortpy
     public:
         static void ReleaseOrtType(OrtMemoryInfo* ptr);
         MemoryInfo();
+        MemoryInfo(const std::string& name, OrtAllocatorType allocatorType,
+                   int deviceId, OrtMemType memType);
+        std::string GetName() const;
+        int GetDeviceId() const;
+    };
+
+    class IoBinding : public OrtTypeWrapper<OrtIoBinding, IoBinding>
+    {
+    public:
+        static void ReleaseOrtType(OrtIoBinding* ptr);
+        IoBinding(const Session& session);
+        void BindInput(const std::string& name, const Value& value);
+        void BindOutput(const std::string& name, const Value& value);
+        void BindOutputToDevice(const std::string& name, const MemoryInfo& memInfo);
+        std::unordered_map<std::string, Value> GetOutputs();
+        void ClearInputs();
+        void ClearOutputs();
+        void SynchronizeInputs();
+        void SynchronizeOutputs();
+    private:
+        std::vector<Value> _boundInputValues;
+        std::vector<Value> _boundOutputValues;
     };
 }
