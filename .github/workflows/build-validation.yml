@@ -11,8 +11,8 @@ env:
   PYTHONIOENCODING: utf-8
 
 jobs:
-  build-validation:
-    name: Build Validation
+  build-validation-windows:
+    name: Build Validation (Windows)
     runs-on: windows-latest
 
     steps:
@@ -27,4 +27,60 @@ jobs:
     - name: Build wheels
       uses: ./.github/actions/windows-build
       with:
-        python-version: '3.13'
+        python-version: '3.14'
+
+    - name: Test wheels
+      run: |
+        pip install (Get-ChildItem dist/*.whl | Select-Object -ExpandProperty FullName)
+        pytest test/ -v
+      shell: powershell
+
+  build-validation-linux:
+    name: Build Validation (Linux)
+    runs-on: ubuntu-latest
+    container:
+      image: quay.io/pypa/manylinux_2_28_x86_64
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Setup build environment
+      uses: ./.github/actions/linux-prepare
+
+    - name: Build wheels
+      uses: ./.github/actions/linux-build
+      with:
+        python-root: '/opt/python/cp314-cp314'
+
+    - name: Test wheels
+      run: |
+        /opt/python/cp314-cp314/bin/python -m pip install dist/*.whl
+        /opt/python/cp314-cp314/bin/python -m pytest test/ -v
+      shell: bash
+
+  build-validation-macos:
+    name: Build Validation (macOS)
+    runs-on: macos-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+    
+    - name: Setup build environment
+      uses: ./.github/actions/macos-prepare
+    
+    - name: Build wheels
+      uses: ./.github/actions/macos-build
+      with:
+        python-version: '3.14'
+
+    - name: Test wheels
+      run: |
+        pip install dist/*.whl
+        pytest test/ -v
+      shell: bash

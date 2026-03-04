@@ -1,6 +1,8 @@
 import argparse
 import json
+import os
 import shutil
+import tarfile
 import tempfile
 import zipfile
 from dataclasses import dataclass
@@ -12,7 +14,16 @@ import platform
 import re
 
 PROJECT_ROOT = Path(__file__).resolve().parent
-REQUIRED_ARCHITECTURES = ("win-x64", "win-arm64")
+
+# All platform/architecture combos that must be present in a release
+# when --require-all-platforms is used.
+ALL_SUPPORTED_PLATFORMS = (
+    "win-x64",
+    "win-arm64",
+    "linux-x64",
+    "linux-aarch64",
+    "osx-arm64",
+)
 
 @dataclass(frozen=True)
 class GitHubAsset:
@@ -75,6 +86,9 @@ def validate_version_hint(version_hint: str) -> None:
 def fetch_releases(max_releases: int) -> List[GitHubRelease]:
     url = f"https://api.github.com/repos/microsoft/onnxruntime/releases?per_page={max_releases}"
     request = Request(url)
+    github_token = os.environ.get("GITHUB_TOKEN")
+    if github_token:
+        request.add_header("Authorization", f"token {github_token}")
     with urlopen(request) as response:
         payload = response.read()
     data = json.loads(payload)
@@ -82,67 +96,104 @@ def fetch_releases(max_releases: int) -> List[GitHubRelease]:
         raise RuntimeError("Unexpected response from GitHub API.")
     return [GitHubRelease.from_dict(item) for item in data]
 
-def find_release(releases: Iterable[GitHubRelease], version_hint: Optional[str]) -> GitHubRelease:
+def find_release(
+    releases: Iterable[GitHubRelease],
+    version_hint: Optional[str],
+    require_all_platforms: bool = False,
+    platform_override: Optional[str] = None,
+) -> GitHubRelease:
+    host_arch = platform_override or get_host_architecture()
+    required_archs = ALL_SUPPORTED_PLATFORMS if require_all_platforms else (host_arch,)
+
     if version_hint:
         print(f"Looking for releases matching '{version_hint}.*'.")
+    if require_all_platforms:
+        print(f"Requiring assets for all supported platforms: {', '.join(required_archs)}")
 
     for release in releases:
         clean_version = release.tag_name.lstrip("vV")
         if version_hint and not clean_version.startswith(version_hint):
             continue
 
-        all_required_found = all(
-            any(asset.name.startswith(f"onnxruntime-{arch}-") for asset in release.assets)
-            for arch in REQUIRED_ARCHITECTURES
-        )
-        if not all_required_found:
-            print(f"Skipping release {release.tag_name} due to missing required architectures.")
+        missing = [
+            arch for arch in required_archs
+            if not any(asset.name.startswith(f"onnxruntime-{arch}-") for asset in release.assets)
+        ]
+        if missing:
+            print(f"Skipping release {release.tag_name}: missing assets for {', '.join(missing)}.")
             continue
         return release
     raise RuntimeError("No valid package found.")
+
+def _extract_archive(archive_path: Path, destination: Path) -> None:
+    """Extract a .zip or .tgz/.tar.gz archive into *destination*."""
+    name = archive_path.name.lower()
+    if name.endswith(".zip"):
+        with zipfile.ZipFile(archive_path) as zf:
+            zf.extractall(destination)
+    elif name.endswith(".tgz") or name.endswith(".tar.gz"):
+        with tarfile.open(archive_path, "r:gz") as tf:
+            tf.extractall(destination, filter="data")
+    else:
+        raise RuntimeError(f"Unsupported archive format: {archive_path.name}")
 
 def download_and_extract_asset(asset: GitHubAsset, destination: Path, skip_top_layer: bool = False) -> None:
     request = Request(asset.browser_download_url)
     destination.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory() as tmp_dir:
         tmp_dir = Path(tmp_dir)
-        zip_file_path = tmp_dir / asset.name
-        with urlopen(request) as response, zip_file_path.open("wb") as fh:
+        archive_path = tmp_dir / asset.name
+        with urlopen(request) as response, archive_path.open("wb") as fh:
             shutil.copyfileobj(response, fh)
-        with zipfile.ZipFile(zip_file_path) as zip_file:
-            if not skip_top_layer:
-                zip_file.extractall(destination)
-            else:
-                extract_dir = tmp_dir / "extracted"
-                zip_file.extractall(extract_dir)
-                top_level_items = list(extract_dir.iterdir())
-                if len(top_level_items) != 1 or not top_level_items[0].is_dir():
-                    raise RuntimeError("Unexpected archive structure.")
-                shutil.rmtree(destination, ignore_errors=True)
-                shutil.move(str(top_level_items[0]), destination)
+        if not skip_top_layer:
+            _extract_archive(archive_path, destination)
+        else:
+            extract_dir = tmp_dir / "extracted"
+            _extract_archive(archive_path, extract_dir)
+            top_level_items = list(extract_dir.iterdir())
+            if len(top_level_items) != 1 or not top_level_items[0].is_dir():
+                raise RuntimeError("Unexpected archive structure.")
+            shutil.rmtree(destination, ignore_errors=True)
+            shutil.move(str(top_level_items[0]), destination)
             
 def get_host_architecture() -> str:
-    system = {
-        'Windows': 'win'
-    }[platform.system()]
-    machine = {
-        'AMD64': 'x64',
-        'x86_64': 'x64',
-        'ARM64': 'arm64',
-        'aarch64': 'arm64'
-    }[platform.machine()]
+    system_map = {
+        'Windows': 'win',
+        'Linux': 'linux',
+        'Darwin': 'osx',
+    }
+    system = system_map.get(platform.system())
+    if system is None:
+        raise RuntimeError(f"Unsupported platform: {platform.system()}")
+
+    # ONNX Runtime uses platform-specific architecture names in release assets:
+    #   win-x64, win-arm64, linux-x64, linux-aarch64, osx-arm64, osx-x86_64
+    machine_map = {
+        ('win', 'AMD64'):       'x64',
+        ('win', 'ARM64'):       'arm64',
+        ('linux', 'x86_64'):    'x64',
+        ('linux', 'aarch64'):   'aarch64',
+        ('osx', 'x86_64'):     'x86_64',
+        ('osx', 'arm64'):      'arm64',
+    }
+    machine = machine_map.get((system, platform.machine()))
+    if machine is None:
+        raise RuntimeError(
+            f"Unsupported architecture: {platform.machine()} on {platform.system()}"
+        )
+
     return f"{system}-{machine}"
 
-def find_host_asset(release: GitHubRelease) -> GitHubAsset:
-    host_arch = get_host_architecture()
+def find_host_asset(release: GitHubRelease, platform_override: Optional[str] = None) -> GitHubAsset:
+    arch = platform_override or get_host_architecture()
     for asset in release.assets:
-        if asset.name.startswith(f"onnxruntime-{host_arch}-"):
+        if asset.name.startswith(f"onnxruntime-{arch}-"):
             return asset
-    raise RuntimeError(f"No package found for host architecture '{host_arch}' in release '{release.tag_name}'.")
+    raise RuntimeError(f"No package found for architecture '{arch}' in release '{release.tag_name}'.")
 
 
 parser = argparse.ArgumentParser(
-    description="Download ONNX Runtime Windows distributions (x64 and arm64)."
+    description="Download the ONNX Runtime distribution for the current platform."
 )
 parser.add_argument(
     "--version",
@@ -163,6 +214,20 @@ parser.add_argument(
     default=50,
     help="Maximum number of recent releases to consider (default: 50).",
 )
+parser.add_argument(
+    "--require-all-platforms",
+    dest="require_all_platforms",
+    action="store_true",
+    default=False,
+    help="Only accept releases that have assets for all supported platforms.",
+)
+parser.add_argument(
+    "--platform",
+    dest="platform",
+    default=None,
+    choices=ALL_SUPPORTED_PLATFORMS,
+    help="Force downloading a specific platform/arch flavor instead of auto-detecting.",
+)
 args = parser.parse_args()
 out_dir = Path(args.out_dir).resolve()
 
@@ -175,8 +240,8 @@ if version_hint:
     validate_version_hint(version_hint)
 
 releases = fetch_releases(args.max_releases)
-release = find_release(releases, version_hint)
-asset = find_host_asset(release)
+release = find_release(releases, version_hint, require_all_platforms=args.require_all_platforms, platform_override=args.platform)
+asset = find_host_asset(release, platform_override=args.platform)
 
 shutil.rmtree(out_dir, ignore_errors=True)
 out_dir.mkdir(parents=True, exist_ok=True)

@@ -177,13 +177,18 @@ std::shared_ptr<Ortpy::Env> Ortpy::Env::GetSingleton()
     return _instance;
 }
 
+void Ortpy::Env::ReleaseSingleton()
+{
+    _instance.reset();
+}
+
 Ortpy::Env::Env()
     : OrtTypeWrapper<OrtEnv, Env>(nullptr)
 {
     Ortpy::Status status = GetApi()->CreateEnv(ORT_LOGGING_LEVEL_WARNING, "Ortpy", &_ptr);
     status.Check();
-    /** Return value ignored */
-    GetApi()->DisableTelemetryEvents(_ptr);
+    /** Ignore the return value. */
+    status = GetApi()->DisableTelemetryEvents(_ptr);
 }
 
 void Ortpy::Env::ReleaseOrtType(OrtEnv* ptr)
@@ -803,8 +808,11 @@ std::unordered_map<std::string, Ortpy::NpArray> Ortpy::Session::Run(
     std::vector<Value> outputValuesWrapper;
     outputValuesWrapper.reserve(outputNamesView.size());
     /** Run the session */
+    OrtRunOptions* runOptions = runOptionsOpt.has_value()
+        ? static_cast<OrtRunOptions*>(runOptionsOpt.value().get())
+        : nullptr;
     Ortpy::Status status = GetApi()->Run(
-        _ptr, runOptionsOpt.has_value() ? runOptionsOpt.value().get() : nullptr,
+        _ptr, runOptions,
         inputNamesView.data(), inputValuesView.data(), inputs.size(),
         outputNamesView.data(), outputNamesView.size(), outputValues.data());
     status.Check();

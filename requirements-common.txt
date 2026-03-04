@@ -4,3 +4,5 @@ wheel
 numpy
 GitPython
 typing-extensions
+pytest
+onnx

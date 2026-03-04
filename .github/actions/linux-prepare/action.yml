@@ -1,0 +1,26 @@
+name: 'Set up Linux build environment'
+description: 'Sets up environment for Linux (inside manylinux container)'
+inputs:
+  python-root:
+    description: 'Path to the Python installation root (e.g. /opt/python/cp313-cp313)'
+    required: false
+    default: '/opt/python/cp313-cp313'
+runs:
+  using: 'composite'
+  steps:
+    - name: Mark workspace as safe for git
+      run: git config --global --add safe.directory "$(pwd)"
+      shell: bash
+
+    - name: Install GitPython
+      run: |
+        ${{ inputs.python-root }}/bin/python -m pip install --upgrade pip
+        ${{ inputs.python-root }}/bin/python -m pip install GitPython
+      shell: bash
+
+    - name: Download ONNX Runtime
+      run: |
+        ${{ inputs.python-root }}/bin/python get_onnxruntime.py --require-all-platforms
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ github.token }}

@@ -1,0 +1,23 @@
+name: 'Build wheels for Linux'
+description: 'Build wheels for Linux'
+inputs:
+  python-root:
+    description: 'Path to the Python installation root (e.g. /opt/python/cp313-cp313)'
+    required: true
+runs:
+  using: 'composite'
+  steps:
+    - name: Install Python dependencies
+      run: |
+        ${{ inputs.python-root }}/bin/python -m pip install --upgrade pip
+        ${{ inputs.python-root }}/bin/python -m pip install -r requirements-linux.txt
+      shell: bash
+
+    - name: Build wheel
+      run: |
+        export PATH="${{ inputs.python-root }}/bin:$PATH"
+        rm -rf build
+        mkdir -p build dist
+        cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DPython_ROOT_DIR="${{ inputs.python-root }}"
+        cmake --build build
+      shell: bash
