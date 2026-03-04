@@ -177,6 +177,11 @@ std::shared_ptr<Ortpy::Env> Ortpy::Env::GetSingleton()
     return _instance;
 }
 
+void Ortpy::Env::ReleaseSingleton()
+{
+    _instance.reset();
+}
+
 Ortpy::Env::Env()
     : OrtTypeWrapper<OrtEnv, Env>(nullptr)
 {

@@ -29,6 +29,11 @@ NB_MODULE(_ortpy, m) {
     m.attr("__version__") = ORTPY_VERSION;
     m.attr("ORT_API_VERSION") = ORT_API_VERSION;
 
+    /** Clean up at exit */
+    m.def("_release_env", []() { Ortpy::Env::ReleaseSingleton(); });
+    auto atexit = nanobind::module_::import_("atexit");
+    atexit.attr("register")(m.attr("_release_env"));
+
     nanobind::enum_<ExecutionMode>(m, "ExecutionMode")
         .value("SEQUENTIAL", ORT_SEQUENTIAL)
         .value("PARALLEL", ORT_PARALLEL);
