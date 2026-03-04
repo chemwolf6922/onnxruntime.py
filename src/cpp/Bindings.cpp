@@ -152,6 +152,18 @@ NB_MODULE(_ortpy, m) {
             nanobind::arg("delegate"))
         .def("create_model_compilation_options", &Ortpy::SessionOptions::CreateModelCompilationOptions);
 
+    nanobind::class_<Ortpy::ModelMetadata>(m, "ModelMetadata")
+        .def_prop_ro("producer_name", &Ortpy::ModelMetadata::GetProducerName)
+        .def_prop_ro("graph_name", &Ortpy::ModelMetadata::GetGraphName)
+        .def_prop_ro("domain", &Ortpy::ModelMetadata::GetDomain)
+        .def_prop_ro("description", &Ortpy::ModelMetadata::GetDescription)
+        .def_prop_ro("graph_description", &Ortpy::ModelMetadata::GetGraphDescription)
+        .def_prop_ro("version", &Ortpy::ModelMetadata::GetVersion)
+        .def_prop_ro("custom_metadata_map", &Ortpy::ModelMetadata::GetCustomMetadataMap)
+        .def("lookup_custom_metadata",
+            &Ortpy::ModelMetadata::LookupCustomMetadata,
+            nanobind::arg("key"));
+
     nanobind::class_<Ortpy::TensorInfo>(m, "TensorInfo")
         .def_ro("shape", &Ortpy::TensorInfo::shape)
         .def_ro("dimensions", &Ortpy::TensorInfo::dimensions)
@@ -183,6 +195,9 @@ NB_MODULE(_ortpy, m) {
             nanobind::arg("options"))
         .def("get_input_info", &Ortpy::Session::GetInputInfo)
         .def("get_output_info", &Ortpy::Session::GetOutputInfo)
+        .def("get_model_metadata", &Ortpy::Session::GetModelMetadata)
+        .def("end_profiling", &Ortpy::Session::EndProfiling)
+        .def("get_profiling_start_time_ns", &Ortpy::Session::GetProfilingStartTimeNs)
         .def("run",
             &Ortpy::Session::Run,
             nanobind::arg("inputs"),

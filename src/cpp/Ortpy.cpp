@@ -612,6 +612,113 @@ Ortpy::TensorInfo::TensorInfo(const TypeInfo& typeInfo)
     dtype = Ortpy::Value::OrtTypeToNpType(type);
 }
 
+/** ModelMetadata */
+
+void Ortpy::ModelMetadata::ReleaseOrtType(OrtModelMetadata* ptr)
+{
+    GetApi()->ReleaseModelMetadata(ptr);
+}
+
+std::string Ortpy::ModelMetadata::GetProducerName() const
+{
+    auto allocator = GetAllocator();
+    char* value = nullptr;
+    Ortpy::Status status = GetApi()->ModelMetadataGetProducerName(_ptr, allocator, &value);
+    status.Check();
+    std::string result{ value ? value : "" };
+    allocator->Free(allocator, value);
+    return result;
+}
+
+std::string Ortpy::ModelMetadata::GetGraphName() const
+{
+    auto allocator = GetAllocator();
+    char* value = nullptr;
+    Ortpy::Status status = GetApi()->ModelMetadataGetGraphName(_ptr, allocator, &value);
+    status.Check();
+    std::string result{ value ? value : "" };
+    allocator->Free(allocator, value);
+    return result;
+}
+
+std::string Ortpy::ModelMetadata::GetDomain() const
+{
+    auto allocator = GetAllocator();
+    char* value = nullptr;
+    Ortpy::Status status = GetApi()->ModelMetadataGetDomain(_ptr, allocator, &value);
+    status.Check();
+    std::string result{ value ? value : "" };
+    allocator->Free(allocator, value);
+    return result;
+}
+
+std::string Ortpy::ModelMetadata::GetDescription() const
+{
+    auto allocator = GetAllocator();
+    char* value = nullptr;
+    Ortpy::Status status = GetApi()->ModelMetadataGetDescription(_ptr, allocator, &value);
+    status.Check();
+    std::string result{ value ? value : "" };
+    allocator->Free(allocator, value);
+    return result;
+}
+
+std::string Ortpy::ModelMetadata::GetGraphDescription() const
+{
+    auto allocator = GetAllocator();
+    char* value = nullptr;
+    Ortpy::Status status = GetApi()->ModelMetadataGetGraphDescription(_ptr, allocator, &value);
+    status.Check();
+    std::string result{ value ? value : "" };
+    allocator->Free(allocator, value);
+    return result;
+}
+
+int64_t Ortpy::ModelMetadata::GetVersion() const
+{
+    int64_t value = 0;
+    Ortpy::Status status = GetApi()->ModelMetadataGetVersion(_ptr, &value);
+    status.Check();
+    return value;
+}
+
+std::unordered_map<std::string, std::string> Ortpy::ModelMetadata::GetCustomMetadataMap() const
+{
+    auto allocator = GetAllocator();
+    char** keys = nullptr;
+    int64_t numKeys = 0;
+    Ortpy::Status status = GetApi()->ModelMetadataGetCustomMetadataMapKeys(_ptr, allocator, &keys, &numKeys);
+    status.Check();
+    std::unordered_map<std::string, std::string> result;
+    for (int64_t i = 0; i < numKeys; ++i)
+    {
+        std::string key{ keys[i] };
+        allocator->Free(allocator, keys[i]);
+        char* value = nullptr;
+        status = GetApi()->ModelMetadataLookupCustomMetadataMap(_ptr, allocator, key.c_str(), &value);
+        status.Check();
+        result[key] = value ? value : "";
+        allocator->Free(allocator, value);
+    }
+    allocator->Free(allocator, keys);
+    return result;
+}
+
+std::optional<std::string> Ortpy::ModelMetadata::LookupCustomMetadata(const std::string& key) const
+{
+    auto allocator = GetAllocator();
+    char* value = nullptr;
+    Ortpy::Status status = GetApi()->ModelMetadataLookupCustomMetadataMap(_ptr, allocator, key.c_str(), &value);
+    status.Check();
+    if (value == nullptr)
+    {
+        return std::nullopt;
+    }
+    std::string result{ value };
+    allocator->Free(allocator, value);
+    return result;
+}
+
 /** RunOptions */
 
 void Ortpy::RunOptions::ReleaseOrtType(OrtRunOptions* ptr)
@@ -760,6 +867,33 @@ std::unordered_map<std::string, Ortpy::TensorInfo> Ortpy::Session::GetOutputInfo
         outputInfo.emplace(name, TensorInfo{ typeInfo });
     }
     return outputInfo;
+}
+
+Ortpy::ModelMetadata Ortpy::Session::GetModelMetadata() const
+{
+    OrtModelMetadata* metadata = nullptr;
+    Ortpy::Status status = GetApi()->SessionGetModelMetadata(_ptr, &metadata);
+    status.Check();
+    return ModelMetadata{ metadata };
+}
+
+std::string Ortpy::Session::EndProfiling() const
+{
+    auto allocator = GetAllocator();
+    char* value = nullptr;
+    Ortpy::Status status = GetApi()->SessionEndProfiling(_ptr, allocator, &value);
+    status.Check();
+    std::string result{ value ? value : "" };
+    allocator->Free(allocator, value);
+    return result;
+}
+
+uint64_t Ortpy::Session::GetProfilingStartTimeNs() const
+{
+    uint64_t value = 0;
+    Ortpy::Status status = GetApi()->SessionGetProfilingStartTimeNs(_ptr, &value);
+    status.Check();
+    return value;
 }
 
 std::unordered_map<std::string, Ortpy::NpArray> Ortpy::Session::Run(

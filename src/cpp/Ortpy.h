@@ -195,6 +195,21 @@ namespace Ortpy
         TensorInfo(const TypeInfo& typeInfo);
     };
 
+    class ModelMetadata : public OrtTypeWrapper<OrtModelMetadata, ModelMetadata>
+    {
+    public:
+        static void ReleaseOrtType(OrtModelMetadata* ptr);
+        using OrtTypeWrapper::OrtTypeWrapper;
+        std::string GetProducerName() const;
+        std::string GetGraphName() const;
+        std::string GetDomain() const;
+        std::string GetDescription() const;
+        std::string GetGraphDescription() const;
+        int64_t GetVersion() const;
+        std::unordered_map<std::string, std::string> GetCustomMetadataMap() const;
+        std::optional<std::string> LookupCustomMetadata(const std::string& key) const;
+    };
+
     class RunOptions : public OrtTypeWrapper<OrtRunOptions, RunOptions>
     {
     public:
@@ -219,6 +234,9 @@ namespace Ortpy
 
         std::unordered_map<std::string, TensorInfo> GetInputInfo() const;
         std::unordered_map<std::string, TensorInfo> GetOutputInfo() const;
+        ModelMetadata GetModelMetadata() const;
+        std::string EndProfiling() const;
+        uint64_t GetProfilingStartTimeNs() const;
         std::unordered_map<std::string, NpArray> Run(
             const std::unordered_map<std::string, NpArray>& inputs,
             const std::optional<std::vector<std::string>>& outputNames,
