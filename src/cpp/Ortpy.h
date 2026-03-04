@@ -301,6 +301,10 @@ namespace Ortpy
                    int deviceId, OrtMemType memType);
         std::string GetName() const;
         int GetDeviceId() const;
+        OrtMemType GetMemType() const;
+        OrtAllocatorType GetAllocatorType() const;
+        OrtMemoryInfoDeviceType GetDeviceType() const;
+        bool operator==(const MemoryInfo& other) const;
     };
 
     class IoBinding : public OrtTypeWrapper<OrtIoBinding, IoBinding>

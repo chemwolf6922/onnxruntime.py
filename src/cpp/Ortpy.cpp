@@ -1318,6 +1318,37 @@ int Ortpy::MemoryInfo::GetDeviceId() const
     return id;
 }
 
+OrtMemType Ortpy::MemoryInfo::GetMemType() const
+{
+    OrtMemType memType;
+    Ortpy::Status status = GetApi()->MemoryInfoGetMemType(_ptr, &memType);
+    status.Check();
+    return memType;
+}
+
+OrtAllocatorType Ortpy::MemoryInfo::GetAllocatorType() const
+{
+    OrtAllocatorType type;
+    Ortpy::Status status = GetApi()->MemoryInfoGetType(_ptr, &type);
+    status.Check();
+    return type;
+}
+
+OrtMemoryInfoDeviceType Ortpy::MemoryInfo::GetDeviceType() const
+{
+    OrtMemoryInfoDeviceType type;
+    GetApi()->MemoryInfoGetDeviceType(_ptr, &type);
+    return type;
+}
+
+bool Ortpy::MemoryInfo::operator==(const MemoryInfo& other) const
+{
+    int result = 0;
+    Ortpy::Status status = GetApi()->CompareMemoryInfo(_ptr, other._ptr, &result);
+    status.Check();
+    return result == 0;
+}
+
 void Ortpy::MemoryInfo::ReleaseOrtType(OrtMemoryInfo* ptr)
 {
     GetApi()->ReleaseMemoryInfo(ptr);

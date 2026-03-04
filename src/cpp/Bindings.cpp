@@ -68,6 +68,12 @@ NB_MODULE(_ortpy, m) {
         .value("CPU_OUTPUT", OrtMemTypeCPUOutput)
         .value("DEFAULT", OrtMemTypeDefault);
 
+    nanobind::enum_<OrtMemoryInfoDeviceType>(m, "MemoryInfoDeviceType")
+        .value("CPU", OrtMemoryInfoDeviceType_CPU)
+        .value("GPU", OrtMemoryInfoDeviceType_GPU)
+        .value("FPGA", OrtMemoryInfoDeviceType_FPGA)
+        .value("NPU", OrtMemoryInfoDeviceType_NPU);
+
     nanobind::class_<Ortpy::HardwareDevice>(m, "HardwareDevice")
         .def_ro("type", &Ortpy::HardwareDevice::type)
         .def_ro("vendor_id", &Ortpy::HardwareDevice::vendorId)
@@ -113,7 +119,11 @@ NB_MODULE(_ortpy, m) {
             nanobind::arg("device_id"),
             nanobind::arg("mem_type"))
         .def_prop_ro("name", &Ortpy::MemoryInfo::GetName)
-        .def_prop_ro("device_id", &Ortpy::MemoryInfo::GetDeviceId);
+        .def_prop_ro("device_id", &Ortpy::MemoryInfo::GetDeviceId)
+        .def_prop_ro("mem_type", &Ortpy::MemoryInfo::GetMemType)
+        .def_prop_ro("allocator_type", &Ortpy::MemoryInfo::GetAllocatorType)
+        .def_prop_ro("device_type", &Ortpy::MemoryInfo::GetDeviceType)
+        .def("__eq__", &Ortpy::MemoryInfo::operator==);
 
     nanobind::class_<Ortpy::IoBinding>(m, "IoBinding")
         .def("bind_input",

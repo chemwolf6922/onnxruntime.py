@@ -1,43 +1,27 @@
 # Missing ORT C API Bindings
 
-## Currently Bound APIs (~50 C API calls)
+## Currently Bound APIs (~80 C API calls)
 
 | Area | What's Covered |
 |---|---|
 | **Env** | `CreateEnv`, `ReleaseEnv`, `DisableTelemetryEvents`, `RegisterExecutionProviderLibrary`, `UnregisterExecutionProviderLibrary`, `GetEpDevices` |
 | **SessionOptions** | Create/Release, `SetOptimizedModelFilePath`, `SetSessionExecutionMode`, Enable/Disable Profiling, Enable/Disable MemPattern, Enable/Disable CpuMemArena, `SetSessionLogId`, `SetSessionLogVerbosityLevel`, `SetSessionLogSeverityLevel`, `SetSessionGraphOptimizationLevel`, `SetIntraOpNumThreads`, `SetInterOpNumThreads`, `RegisterCustomOpsLibrary` (V1), `SessionOptionsAppendExecutionProvider_V2`, `SessionOptionsSetEpSelectionPolicy`, `SessionOptionsSetEpSelectionPolicyDelegate` |
-| **Session** | `CreateSession`, `CreateSessionFromArray`, `Run`, `SessionGetInputCount/Name/TypeInfo`, `SessionGetOutputCount/Name/TypeInfo` |
+| **Session** | `CreateSession`, `CreateSessionFromArray`, `Run`, `RunWithBinding`, `SessionGetInputCount/Name/TypeInfo`, `SessionGetOutputCount/Name/TypeInfo`, `SessionGetModelMetadata`, `SessionEndProfiling`, `SessionGetProfilingStartTimeNs` |
 | **RunOptions** | Create/Release, Set/Get RunLogVerbosityLevel, Set/Get RunLogSeverityLevel, Set/Get RunTag, Set/Unset Terminate |
 | **Value/Tensor** | `CreateTensorAsOrtValue`, `CreateTensorWithDataAsOrtValue`, `GetTensorMutableData`, `GetTensorTypeAndShape`, `GetTensorElementType`, `GetDimensionsCount`, `GetDimensions`, `GetSymbolicDimensions`, `ReleaseValue` |
 | **TypeInfo** | `CastTypeInfoToTensorInfo`, `ReleaseTypeInfo`, `ReleaseTensorTypeAndShapeInfo` |
-| **MemoryInfo** | `CreateCpuMemoryInfo`, `ReleaseMemoryInfo` |
+| **MemoryInfo** | `CreateCpuMemoryInfo`, `CreateMemoryInfo`, `MemoryInfoGetName`, `MemoryInfoGetId`, `MemoryInfoGetMemType`, `MemoryInfoGetType`, `MemoryInfoGetDeviceType`, `CompareMemoryInfo`, `ReleaseMemoryInfo` |
 | **Allocator** | `GetAllocatorWithDefaultOptions` |
 | **EpDevice/HardwareDevice** | `HardwareDevice_Type/VendorId/Vendor/DeviceId/Metadata`, `EpDevice_EpName/EpVendor/EpMetadata/EpOptions/Device` |
+| **ModelMetadata** | `ReleaseModelMetadata`, `ModelMetadataGetProducerName/GraphName/Domain/Description/GraphDescription/Version`, `ModelMetadataLookupCustomMetadataMap`, `ModelMetadataGetCustomMetadataMapKeys` |
+| **IoBinding** | `CreateIoBinding`, `ReleaseIoBinding`, `BindInput`, `BindOutput`, `BindOutputToDevice`, `GetBoundOutputNames`, `GetBoundOutputValues`, `ClearBoundInputs`, `ClearBoundOutputs`, `SynchronizeBoundInputs`, `SynchronizeBoundOutputs` |
 | **CompileApi** | `CreateModelCompilationOptionsFromSessionOptions`, `ModelCompilationOptions_SetInputModelPath`, `SetInputModelFromBuffer`, `SetOutputModelExternalInitializersFile`, `SetEpContextEmbedMode`, `SetOutputModelPath`, `SetOutputModelBuffer`, `CompileModel`, `ReleaseModelCompilationOptions` |
 
 ---
 
 ## Missing APIs — Inference-Related, Normal Python Use
 
-### Group 1: Model Metadata (High Priority)
-
-Users commonly need model producer, version, and custom metadata.
-
-| C API | Description | Status |
-|---|---|---|
-| `SessionGetModelMetadata` | Get `OrtModelMetadata` from session | |
-| `ModelMetadataGetProducerName` | Get producer name | |
-| `ModelMetadataGetGraphName` | Get graph name | |
-| `ModelMetadataGetDomain` | Get domain | |
-| `ModelMetadataGetDescription` | Get description | |
-| `ModelMetadataGetGraphDescription` | Get graph description | |
-| `ModelMetadataGetVersion` | Get model version (int64) | |
-| `ModelMetadataLookupCustomMetadataMap` | Lookup custom metadata by key | |
-| `ModelMetadataGetCustomMetadataMapKeys` | Get all custom metadata keys | |
-| `SessionEndProfiling` | End profiling and get output file name | |
-| `SessionGetProfilingStartTimeNs` | Get profiling start time (ns) | |
-
-### Group 2: Session — Additional Queries (Medium Priority)
+### Group 1: Session — Additional Queries (Medium Priority)
 
 Useful for introspection of loaded sessions.
 
@@ -52,7 +36,7 @@ Useful for introspection of loaded sessions.
 | `SessionGetEpDeviceForOutputs` | Get `OrtEpDevice` assigned per output | |
 | `Session_GetEpGraphAssignmentInfo` | Get EP graph assignment info | |
 
-### Group 3: SessionOptions — Additional Configuration (Medium Priority)
+### Group 2: SessionOptions — Additional Configuration (Medium Priority)
 
 Commonly needed for advanced session setup.
 
@@ -76,7 +60,7 @@ Commonly needed for advanced session setup.
 | `SetDeterministicCompute` | Force deterministic GPU compute | |
 | `SessionOptionsSetLoadCancellationFlag` | Set flag to cancel session loading | |
 
-### Group 4: RunOptions — Additional Configuration (Medium Priority)
+### Group 3: RunOptions — Additional Configuration (Medium Priority)
 
 | C API | Description | Status |
 |---|---|---|
@@ -84,25 +68,7 @@ Commonly needed for advanced session setup.
 | `GetRunConfigEntry` | Get config entry from run options | |
 | `RunOptionsSetSyncStream` | Set `OrtSyncStream` on run options | |
 
-### Group 5: I/O Binding (High Priority)
-
-Important for GPU inference — avoids host-device copies.
-
-| C API | Description | Status |
-|---|---|---|
-| `CreateIoBinding` | Create I/O binding for a session | |
-| `BindInput` | Bind input name to an OrtValue | |
-| `BindOutput` | Bind output name to an OrtValue | |
-| `BindOutputToDevice` | Bind output to a device (lazy alloc) | |
-| `RunWithBinding` | Run inference with I/O binding | |
-| `GetBoundOutputNames` | Get all bound output names | |
-| `GetBoundOutputValues` | Get all bound output values | |
-| `ClearBoundInputs` | Clear all bound inputs | |
-| `ClearBoundOutputs` | Clear all bound outputs | |
-| `SynchronizeBoundInputs` | Sync bound inputs (EP-specific) | |
-| `SynchronizeBoundOutputs` | Sync bound outputs (EP-specific) | |
-
-### Group 6: Value/Tensor — Extended Operations (Medium Priority)
+### Group 4: Value/Tensor — Extended Operations (Medium Priority)
 
 String tensor support, additional tensor queries, and non-tensor value support (maps, sequences — rarely used in practice).
 
@@ -127,25 +93,13 @@ String tensor support, additional tensor queries, and non-tensor value support (
 | `CreateValue` | Create a map/sequence OrtValue | |
 | `CreateTensorWithDataAndDeleterAsOrtValue` | Create tensor with custom deleter | |
 
-### Group 7: Async Execution (Low Priority)
+### Group 5: Async Execution (Low Priority)
 
 | C API | Description | Status |
 |---|---|---|
 | `RunAsync` | Run model asynchronously | |
 
-### Group 8: MemoryInfo — Extended (Low Priority)
-
-| C API | Description | Status |
-|---|---|---|
-| `CreateMemoryInfo` | Create MemoryInfo with full parameters | |
-| `CompareMemoryInfo` | Compare two MemoryInfo objects | |
-| `MemoryInfoGetName` | Get allocator name | |
-| `MemoryInfoGetId` | Get device ID | |
-| `MemoryInfoGetMemType` | Get memory type | |
-| `MemoryInfoGetType` | Get allocator type | |
-| `MemoryInfoGetDeviceType` | Get device type | |
-
-### Group 9: TypeInfo — Extended (Medium Priority)
+### Group 6: TypeInfo — Extended (Medium Priority)
 
 Maps, sequences, optionals type introspection.
 
@@ -162,7 +116,7 @@ Maps, sequences, optionals type introspection.
 | `GetOptionalContainedTypeInfo` | Get contained type of optional | |
 | `GetTensorShapeElementCount` | Get total element count | |
 
-### Group 10: Env — Extended Configuration (Medium Priority)
+### Group 7: Env — Extended Configuration (Medium Priority)
 
 | C API | Description | Status |
 |---|---|---|
@@ -171,7 +125,7 @@ Maps, sequences, optionals type introspection.
 | `UpdateEnvWithCustomLogLevel` | Update log severity level | |
 | `GetBuildInfoString` | Get ORT build info string | |
 
-### Group 11: Allocator — Extended (Low Priority)
+### Group 8: Allocator — Extended (Low Priority)
 
 | C API | Description | Status |
 |---|---|---|
@@ -180,7 +134,7 @@ Maps, sequences, optionals type introspection.
 | `AllocatorFree` | Free memory | |
 | `AllocatorGetInfo` | Get allocator's MemoryInfo | |
 
-### Group 12: Legacy Per-EP Registration (Low Priority)
+### Group 9: Legacy Per-EP Registration (Low Priority)
 
 > The project already uses the V2 EP API (`SessionOptionsAppendExecutionProvider_V2` + `GetEpDevices`). These are the older per-EP APIs. Whether to bind them depends on backward compatibility goals.
 
@@ -202,7 +156,7 @@ Maps, sequences, optionals type introspection.
 | `SetEpDynamicOptions` | Set dynamic EP options at runtime | |
 | All `Create/Update/Get/Release*ProviderOptions` | Provider-specific option management | |
 
-### Group 13: SyncStream / Data Transfer / Shared Allocator (Low Priority)
+### Group 10: SyncStream / Data Transfer / Shared Allocator (Low Priority)
 
 | C API | Description | Status |
 |---|---|---|
@@ -213,7 +167,7 @@ Maps, sequences, optionals type introspection.
 | `GetSharedAllocator` | Get shared allocator from env | |
 | `ReleaseSharedAllocator` | Release shared allocator | |
 
-### Group 14: EpDevice / HardwareDevice — Extended Query (Medium Priority)
+### Group 11: EpDevice / HardwareDevice — Extended Query (Medium Priority)
 
 | C API | Description | Status |
 |---|---|---|
@@ -225,7 +179,7 @@ Maps, sequences, optionals type introspection.
 | `GetCompatibilityInfoFromModel` | Check compatibility from model file | |
 | `GetCompatibilityInfoFromModelBytes` | Check compatibility from model bytes | |
 
-### Group 15: LoRA Adapter (Medium Priority)
+### Group 12: LoRA Adapter (Medium Priority)
 
 | C API | Description | Status |
 |---|---|---|
@@ -233,7 +187,7 @@ Maps, sequences, optionals type introspection.
 | `CreateLoraAdapterFromArray` | Create LoRA adapter from byte array | |
 | `RunOptionsAddActiveLoraAdapter` | Activate LoRA adapter for a run | |
 
-### Group 16: CompileApi — Additional Options (Medium Priority)
+### Group 13: CompileApi — Additional Options (Medium Priority)
 
 | C API | Description | Status |
 |---|---|---|
@@ -342,22 +296,19 @@ Maps, sequences, optionals type introspection.
 
 | Priority | Group | API Count | Use Case |
 |---|---|---|---|
-| **High** | Group 1 — Model Metadata | 11 | Model producer, version, custom metadata |
-| **High** | Group 5 — I/O Binding | 11 | GPU inference without host copies |
-| **Medium** | Group 6 — Value/Tensor extended | 18 | String tensors, map/sequence values (non-tensor values are rare) |
-| **Medium** | Group 3 — SessionOptions extended | 17 | Free dim overrides, config entries, custom ops V2 |
-| **Medium** | Group 2 — Session queries | 8 | Per-input memory/device info, EP assignment |
-| **Medium** | Group 4 — RunOptions extended | 3 | Config entries, sync stream |
-| **Medium** | Group 9 — TypeInfo extended | 10 | Map/sequence/optional type introspection |
-| **Medium** | Group 10 — Env extended | 4 | Global thread pools, build info |
-| **Medium** | Group 14 — EpDevice/HW extended | 7 | Compatibility checks, hardware enumeration |
-| **Medium** | Group 15 — LoRA Adapter | 3 | LoRA fine-tuned model inference |
-| **Medium** | Group 16 — CompileApi extended | 5 | Advanced compilation options |
-| **Low** | Group 7 — Async execution | 1 | Async inference |
-| **Low** | Group 8 — MemoryInfo extended | 7 | Fine-grained memory control |
-| **Low** | Group 11 — Allocator extended | 4 | Custom allocation |
-| **Low** | Group 12 — Legacy per-EP registration | ~25 | Old-style EP setup (project uses V2) |
-| **Low** | Group 13 — SyncStream/transfer | 6 | Cross-device tensor copies |
+| **Medium** | Group 4 — Value/Tensor extended | 18 | String tensors, map/sequence values (non-tensor values are rare) |
+| **Medium** | Group 2 — SessionOptions extended | 17 | Free dim overrides, config entries, custom ops V2 |
+| **Medium** | Group 1 — Session queries | 8 | Per-input memory/device info, EP assignment |
+| **Medium** | Group 3 — RunOptions extended | 3 | Config entries, sync stream |
+| **Medium** | Group 6 — TypeInfo extended | 10 | Map/sequence/optional type introspection |
+| **Medium** | Group 7 — Env extended | 4 | Global thread pools, build info |
+| **Medium** | Group 11 — EpDevice/HW extended | 7 | Compatibility checks, hardware enumeration |
+| **Medium** | Group 12 — LoRA Adapter | 3 | LoRA fine-tuned model inference |
+| **Medium** | Group 13 — CompileApi extended | 5 | Advanced compilation options |
+| **Low** | Group 5 — Async execution | 1 | Async inference |
+| **Low** | Group 8 — Allocator extended | 4 | Custom allocation |
+| **Low** | Group 9 — Legacy per-EP registration | ~25 | Old-style EP setup (project uses V2) |
+| **Low** | Group 10 — SyncStream/transfer | 6 | Cross-device tensor copies |
 | N/A | Training APIs | ~40+ | **Not inference** |
 | N/A | Custom Op / KernelInfo / KernelContext | ~40+ | **Not for normal Python use** |
 | N/A | EP implementation | ~60+ | **Not for normal Python use** |
