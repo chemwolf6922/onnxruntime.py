@@ -88,7 +88,7 @@ def repair_wheel(whl_path: Path) -> None:
     # Check if the tool is available
     try:
         subprocess.run(
-            [sys.executable, "-m", tool_name, "--version"],
+            [sys.executable, "-m", "pip", "show", tool_name],
             capture_output=True, check=True,
         )
     except (subprocess.CalledProcessError, FileNotFoundError):
