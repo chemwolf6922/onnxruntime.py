@@ -10,21 +10,14 @@ runs:
     - name: Install Python dependencies
       run: |
         ${{ inputs.python-root }}/bin/python -m pip install --upgrade pip
-        ${{ inputs.python-root }}/bin/python -m pip install -r requirements.txt
+        ${{ inputs.python-root }}/bin/python -m pip install -r requirements.txt auditwheel patchelf
       shell: bash
 
     - name: Build wheel
       run: |
         export PATH="${{ inputs.python-root }}/bin:$PATH"
-        rm -rf build dist
-        mkdir -p build dist dist-final
+        rm -rf build
+        mkdir -p build dist
         cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DPython_ROOT_DIR="${{ inputs.python-root }}"
         cmake --build build
-      shell: bash
-
-    - name: Repair wheels with auditwheel
-      run: |
-        for whl in dist/*.whl; do
-          auditwheel repair "$whl" -w dist-final || cp "$whl" dist-final/
-        done
       shell: bash

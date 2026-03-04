@@ -3,6 +3,7 @@ from pathlib import Path
 from glob import glob
 import shutil
 import subprocess
+import tempfile
 from get_version import get_version, get_lib_version, get_dependency_string
 import platform
 import sys
@@ -63,6 +64,67 @@ def get_shared_libs(lib_dir: Path) -> list[Path]:
         raise FileNotFoundError(f"No ONNX Runtime shared libraries found in {lib_dir}")
     return libs
 
+def repair_wheel(whl_path: Path) -> None:
+    """Repair a wheel in-place using platform-specific tools.
+    
+    On Linux, runs auditwheel to retag linux_* -> manylinux_*.
+    On macOS, runs delocate-wheel to fix dylib rpaths.
+    On Windows, no repair is needed.
+    Raises RuntimeError if the repair tool is missing or repair fails.
+    """
+    system = platform.system()
+    if system == "Windows":
+        return
+
+    if system == "Linux":
+        tool_cmd = [sys.executable, "-m", "auditwheel", "repair"]
+        tool_name = "auditwheel"
+    elif system == "Darwin":
+        tool_cmd = [sys.executable, "-m", "delocate.cmd.delocate_wheel", "-v"]
+        tool_name = "delocate"
+    else:
+        return
+
+    # Check if the tool is available
+    try:
+        subprocess.run(
+            [sys.executable, "-m", tool_name, "--version"],
+            capture_output=True, check=True,
+        )
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        raise RuntimeError(
+            f"{tool_name} is not installed. Install it with: pip install {tool_name}"
+        )
+
+    output_dir = whl_path.parent
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        result = subprocess.run(
+            tool_cmd + [str(whl_path), "-w", tmp_dir],
+            capture_output=True, text=True,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"{tool_name} repair failed for {whl_path.name}:\n{result.stderr}"
+            )
+        # Replace the original wheel with the repaired one
+        repaired = list(Path(tmp_dir).glob("*.whl"))
+        if repaired:
+            whl_path.unlink()
+            for r in repaired:
+                shutil.move(str(r), output_dir / r.name)
+            print(f"Repaired: {whl_path.name} -> {', '.join(r.name for r in repaired)}")
+
+def pack_and_repair(wheel_build_dir: Path, output_dir: Path) -> None:
+    """Pack a wheel from the build directory and repair it."""
+    existing = set(output_dir.glob("*.whl"))
+    subprocess.run(
+        [sys.executable, "-m", "wheel", "pack", str(wheel_build_dir), "--dest-dir", str(output_dir)],
+        check=True,
+    )
+    new_wheels = set(output_dir.glob("*.whl")) - existing
+    for whl in new_wheels:
+        repair_wheel(whl)
+
 parser = ArgumentParser(description="Pack the ortpy and ortpy-lib wheels.")
 parser.add_argument(
     "--build-type", "-b", 
@@ -118,10 +180,7 @@ copy_file_with_replacements(
         "ORTPY_WHEEL_TAG": wheel_tag
     }
 )
-subprocess.run(
-    [sys.executable, "-m", "wheel", "pack", str(WHEEL_BUILD_DIR), "--dest-dir", str(WHEEL_OUTPUT_DIR)],
-    check=True,
-)
+pack_and_repair(WHEEL_BUILD_DIR, WHEEL_OUTPUT_DIR)
 
 # Pack the ortpy-lib wheel
 
@@ -151,7 +210,4 @@ copy_file_with_replacements(
     }
 )
 shutil.copy(PROJECT_DIR / "src" / "ortpy_lib.dist-info.in" / "top_level.txt", wheel_build_dist_info_dir)
-subprocess.run(
-    [sys.executable, "-m", "wheel", "pack", str(WHEEL_BUILD_DIR), "--dest-dir", str(WHEEL_OUTPUT_DIR)],
-    check=True,
-)
+pack_and_repair(WHEEL_BUILD_DIR, WHEEL_OUTPUT_DIR)

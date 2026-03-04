@@ -139,7 +139,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: wheels-linux-x64
-        path: dist-final/*.whl
+        path: dist/*.whl
 
   build-linux-aarch64:
     name: Build for Linux aarch64
@@ -185,7 +185,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: wheels-linux-aarch64
-        path: dist-final/*.whl
+        path: dist/*.whl
 
   build-macos-arm64:
     name: Build for macOS arm64
@@ -229,7 +229,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: wheels-macos-arm64
-        path: dist-final/*.whl
+        path: dist/*.whl
 
   # TODO: Add test jobs
 

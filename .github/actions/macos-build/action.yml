@@ -22,16 +22,8 @@ runs:
     - name: Build wheel
       run: |
         cd ${{ github.workspace }}
-        rm -rf build dist
-        mkdir -p build dist dist-final
+        rm -rf build
+        mkdir -p build dist
         cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
         cmake --build build
-      shell: bash
-
-    - name: Repair wheels with delocate
-      run: |
-        cd ${{ github.workspace }}
-        for whl in dist/*.whl; do
-          delocate-wheel -w dist-final -v "$whl" || cp "$whl" dist-final/
-        done
       shell: bash
