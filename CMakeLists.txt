@@ -1,4 +1,8 @@
 cmake_minimum_required(VERSION 3.20)
+
+# Must be set before project() to take effect
+set(CMAKE_OSX_DEPLOYMENT_TARGET "14.0" CACHE STRING "Minimum macOS deployment target")
+
 project(onnxruntime.py LANGUAGES CXX)
 
 # This does not work for Windows...

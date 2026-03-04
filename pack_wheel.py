@@ -25,8 +25,8 @@ def get_wheel_platform_tag() -> str:
         # e.g. linux_x86_64, linux_aarch64
         return f"linux_{machine}"
     elif system == "Darwin":
-        # Target macOS 11.0 as the minimum (required for ARM Macs)
-        return f"macosx_11_0_{machine}"
+        # Must match CMAKE_OSX_DEPLOYMENT_TARGET in CMakeLists.txt
+        return f"macosx_14_0_{machine}"
     else:
         raise RuntimeError(f"Unsupported platform: {system}")
 

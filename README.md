@@ -2,20 +2,39 @@
 
 ## Build steps
 
-### Prerequisites
+### Windows
 
 1. Prepare a shell with Visual Studio 2022 tools and python enabled.
-2. [optional]Create a new python environment.
-3. `pip install -r requirements.txt`
-4. `python get_onnxruntime.py`
-
-### Build for your system
+2. `pip install -r requirements-windows.txt`
+3. `python get_onnxruntime.py`
 
 ```PowerShell
 mkdir build
 cd build
 cmake ..
-cmake --build .
+cmake --build . --config Release
+```
+
+### Linux
+
+1. `pip install -r requirements-linux.txt`
+2. `python get_onnxruntime.py`
+
+```bash
+mkdir -p build
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build build
+```
+
+### macOS
+
+1. `pip install -r requirements-macos.txt`
+2. `python get_onnxruntime.py`
+
+```bash
+mkdir -p build
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build build
 ```
 
 ## Example
