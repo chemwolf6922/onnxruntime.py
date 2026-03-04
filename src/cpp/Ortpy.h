@@ -105,6 +105,7 @@ namespace Ortpy
         void RegisterExecutionProviderLibrary(const std::string& name, const std::string& path);
         void UnregisterExecutionProviderLibrary(const std::string& name);
         std::vector<EpDevice> GetEpDevices() const;
+        void UpdateLogLevel(OrtLoggingLevel level);
     private:
         static std::shared_ptr<Env> _instance;
         Env();

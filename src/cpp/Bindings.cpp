@@ -34,6 +34,13 @@ NB_MODULE(_ortpy, m) {
     auto atexit = nanobind::module_::import_("atexit");
     atexit.attr("register")(m.attr("_release_env"));
 
+    nanobind::enum_<OrtLoggingLevel>(m, "LogLevel")
+        .value("VERBOSE", ORT_LOGGING_LEVEL_VERBOSE)
+        .value("INFO", ORT_LOGGING_LEVEL_INFO)
+        .value("WARNING", ORT_LOGGING_LEVEL_WARNING)
+        .value("ERROR", ORT_LOGGING_LEVEL_ERROR)
+        .value("FATAL", ORT_LOGGING_LEVEL_FATAL);
+
     nanobind::enum_<ExecutionMode>(m, "ExecutionMode")
         .value("SEQUENTIAL", ORT_SEQUENTIAL)
         .value("PARALLEL", ORT_PARALLEL);
@@ -99,6 +106,10 @@ NB_MODULE(_ortpy, m) {
     m.def("get_ep_devices", []() -> std::vector<Ortpy::EpDevice> {
         return Ortpy::Env::GetSingleton()->GetEpDevices();
     });
+
+    m.def("set_log_level", [](OrtLoggingLevel level) -> void {
+        Ortpy::Env::GetSingleton()->UpdateLogLevel(level);
+    }, nanobind::arg("level"));
 
     nanobind::class_<Ortpy::Value>(m, "Value")
         .def(nanobind::init<const Ortpy::NpArray&>(),

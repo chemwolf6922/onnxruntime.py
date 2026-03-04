@@ -224,6 +224,12 @@ std::vector<Ortpy::EpDevice> Ortpy::Env::GetEpDevices() const
     return devices;
 }
 
+void Ortpy::Env::UpdateLogLevel(OrtLoggingLevel level)
+{
+    Ortpy::Status status = GetApi()->UpdateEnvWithCustomLogLevel(_ptr, level);
+    status.Check();
+}
+
 /** ModelCompilationOptions */
 
 void Ortpy::ModelCompilationOptions::ReleaseOrtType(OrtModelCompilationOptions* ptr)
