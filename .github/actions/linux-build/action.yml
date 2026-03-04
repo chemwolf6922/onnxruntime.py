@@ -15,6 +15,7 @@ runs:
 
     - name: Build wheel
       run: |
+        export PATH="${{ inputs.python-root }}/bin:$PATH"
         rm -rf build dist
         mkdir -p build dist dist-final
         cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DPython_ROOT_DIR="${{ inputs.python-root }}"
