@@ -20,7 +20,7 @@ runs:
 
     - name: Download ONNX Runtime
       run: |
-        ${{ inputs.python-root }}/bin/python get_onnxruntime.py --require-all-platforms
+        ${{ inputs.python-root }}/bin/python tools/get_onnxruntime.py --require-all-platforms
       shell: bash
       env:
         GITHUB_TOKEN: ${{ github.token }}

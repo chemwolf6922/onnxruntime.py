@@ -18,7 +18,7 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 find_package(Python 3.8 REQUIRED Interpreter Development.Module REQUIRED)
 
 execute_process(
-  COMMAND "${Python_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/get_version.py"
+  COMMAND "${Python_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tools/get_version.py"
   OUTPUT_VARIABLE ORTPY_VERSION
   OUTPUT_STRIP_TRAILING_WHITESPACE
   RESULT_VARIABLE ORTPY_VERSION_RESULT
@@ -64,7 +64,7 @@ nanobind_add_stub(
 )
 
 add_custom_command(TARGET _ortpy_stub POST_BUILD
-  COMMAND "${Python_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/pack_wheel.py" -b "$<CONFIG>"
+  COMMAND "${Python_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tools/pack_wheel.py" -b "$<CONFIG>"
   WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
   COMMENT "Packing wheel after build"
 )

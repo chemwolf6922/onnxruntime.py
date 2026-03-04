@@ -5,8 +5,8 @@
 ### Windows
 
 1. Prepare a shell with Visual Studio 2022 tools and python enabled.
-2. `pip install -r requirements-windows.txt`
-3. `python get_onnxruntime.py`
+2. `pip install -r tools/requirements-windows.txt`
+3. `python tools/get_onnxruntime.py`
 
 ```PowerShell
 mkdir build
@@ -17,8 +17,8 @@ cmake --build . --config Release
 
 ### Linux
 
-1. `pip install -r requirements-linux.txt`
-2. `python get_onnxruntime.py`
+1. `pip install -r tools/requirements-linux.txt`
+2. `python tools/get_onnxruntime.py`
 
 ```bash
 mkdir -p build
@@ -28,8 +28,8 @@ cmake --build build
 
 ### macOS
 
-1. `pip install -r requirements-macos.txt`
-2. `python get_onnxruntime.py`
+1. `pip install -r tools/requirements-macos.txt`
+2. `python tools/get_onnxruntime.py`
 
 ```bash
 mkdir -p build

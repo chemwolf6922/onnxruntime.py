@@ -10,7 +10,7 @@ runs:
     - name: Install Python dependencies
       run: |
         ${{ inputs.python-root }}/bin/python -m pip install --upgrade pip
-        ${{ inputs.python-root }}/bin/python -m pip install -r requirements-linux.txt
+        ${{ inputs.python-root }}/bin/python -m pip install -r tools/requirements-linux.txt
       shell: bash
 
     - name: Build wheel

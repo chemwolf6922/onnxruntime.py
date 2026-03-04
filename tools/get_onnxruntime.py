@@ -13,7 +13,7 @@ import git
 import platform
 import re
 
-PROJECT_ROOT = Path(__file__).resolve().parent
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 # All platform/architecture combos that must be present in a release
 # when --require-all-platforms is used.
