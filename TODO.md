@@ -9,10 +9,10 @@
 |---|---|
 | **Env** | `CreateEnv`, `ReleaseEnv`, `DisableTelemetryEvents`, `RegisterExecutionProviderLibrary`, `UnregisterExecutionProviderLibrary`, `GetEpDevices`, `UpdateEnvWithCustomLogLevel`, `GetNumHardwareDevices` (v24), `GetHardwareDevices` (v24) |
 | **SessionOptions** | Create/Release/Clone, `SetOptimizedModelFilePath`, `SetSessionExecutionMode`, Enable/Disable Profiling, Enable/Disable MemPattern, Enable/Disable CpuMemArena, `SetSessionLogId`, `SetSessionLogVerbosityLevel`, `SetSessionLogSeverityLevel`, `SetSessionGraphOptimizationLevel`, `SetIntraOpNumThreads`, `SetInterOpNumThreads`, `RegisterCustomOpsLibrary` (V1), `RegisterCustomOpsLibrary_V2`, `RegisterCustomOpsUsingFunction`, `EnableOrtCustomOps`, `AddFreeDimensionOverride`, `AddFreeDimensionOverrideByName`, `DisablePerSessionThreads`, `AddSessionConfigEntry`, `HasSessionConfigEntry`, `GetSessionConfigEntry`, `GetSessionOptionsConfigEntries`, `SetDeterministicCompute`, `SessionOptionsSetLoadCancellationFlag`, `GetAvailableProviders`, `SessionOptionsAppendExecutionProvider` (generic key-value), `SessionOptionsAppendExecutionProvider_V2`, `SessionOptionsSetEpSelectionPolicy`, `SessionOptionsSetEpSelectionPolicyDelegate` |
-| **Session** | `CreateSession`, `CreateSessionFromArray`, `Run`, `RunWithBinding`, `SessionGetInputCount/Name/TypeInfo`, `SessionGetOutputCount/Name/TypeInfo`, `SessionGetModelMetadata`, `SessionEndProfiling`, `SessionGetProfilingStartTimeNs`, `SessionGetMemoryInfoForInputs/Outputs`, `SessionGetEpDeviceForInputs/Outputs` (v24), `Session_GetEpGraphAssignmentInfo` (v24) |
+| **Session** | `CreateSession`, `CreateSessionFromArray`, `Run`, `RunWithOrtValues`, `RunWithBinding`, `SessionGetInputCount/Name/TypeInfo`, `SessionGetOutputCount/Name/TypeInfo`, `SessionGetModelMetadata`, `SessionEndProfiling`, `SessionGetProfilingStartTimeNs`, `SessionGetMemoryInfoForInputs/Outputs`, `SessionGetEpDeviceForInputs/Outputs` (v24), `Session_GetEpGraphAssignmentInfo` (v24) |
 | **RunOptions** | Create/Release, Set/Get RunLogVerbosityLevel, Set/Get RunLogSeverityLevel, Set/Get RunTag, Set/Unset Terminate, `AddRunConfigEntry`, `GetRunConfigEntry`, `RunOptionsAddActiveLoraAdapter` |
-| **Value/Tensor** | `CreateTensorAsOrtValue`, `CreateTensorWithDataAsOrtValue`, `GetTensorMutableData`, `GetTensorTypeAndShape`, `GetTensorElementType`, `GetDimensionsCount`, `GetDimensions`, `GetSymbolicDimensions`, `ReleaseValue` |
-| **TypeInfo** | `CastTypeInfoToTensorInfo`, `GetOnnxTypeFromTypeInfo`, `GetDenotationFromTypeInfo`, `GetTensorShapeElementCount`, `ReleaseTypeInfo`, `ReleaseTensorTypeAndShapeInfo` |
+| **Value/Tensor** | `CreateTensorAsOrtValue`, `CreateTensorWithDataAsOrtValue`, `GetTensorMutableData`, `GetTensorTypeAndShape`, `GetTensorElementType`, `GetDimensionsCount`, `GetDimensions`, `GetSymbolicDimensions`, `ReleaseValue`, `IsTensor`, `GetValueType`, `HasValue`, `GetTensorMemoryInfo`, `GetTensorSizeInBytes`, `FillStringTensor`, `GetStringTensorElementLength`, `GetStringTensorElement`, `GetValue`, `GetValueCount` |
+| **TypeInfo** | `CastTypeInfoToTensorInfo`, `GetOnnxTypeFromTypeInfo`, `GetDenotationFromTypeInfo`, `GetTensorShapeElementCount`, `CastTypeInfoToMapTypeInfo`, `GetMapKeyType`, `GetMapValueType`, `CastTypeInfoToSequenceTypeInfo`, `GetSequenceElementType`, `CastTypeInfoToOptionalTypeInfo`, `GetOptionalContainedTypeInfo`, `ReleaseTypeInfo`, `ReleaseTensorTypeAndShapeInfo`, `ReleaseMapTypeInfo`, `ReleaseSequenceTypeInfo` |
 | **MemoryInfo** | `CreateCpuMemoryInfo`, `CreateMemoryInfo`, `MemoryInfoGetName`, `MemoryInfoGetId`, `MemoryInfoGetMemType`, `MemoryInfoGetType`, `MemoryInfoGetDeviceType`, `CompareMemoryInfo`, `ReleaseMemoryInfo` |
 | **Allocator** | `GetAllocatorWithDefaultOptions` |
 | **EpDevice/HardwareDevice** | `HardwareDevice_Type/VendorId/Vendor/DeviceId/Metadata`, `EpDevice_EpName/EpVendor/EpMetadata/EpOptions/Device`, `EpDevice_MemoryInfo`, `GetNumHardwareDevices` (v24), `GetHardwareDevices` (v24), `GetHardwareDeviceEpIncompatibilityDetails` (v24), `GetModelCompatibilityForEpDevices`, `GetCompatibilityInfoFromModel` (v24), `GetCompatibilityInfoFromModelBytes` (v24) |
@@ -20,44 +20,6 @@
 | **IoBinding** | `CreateIoBinding`, `ReleaseIoBinding`, `BindInput`, `BindOutput`, `BindOutputToDevice`, `GetBoundOutputNames`, `GetBoundOutputValues`, `ClearBoundInputs`, `ClearBoundOutputs`, `SynchronizeBoundInputs`, `SynchronizeBoundOutputs` |
 | **CompileApi** | `CreateModelCompilationOptionsFromSessionOptions`, `ModelCompilationOptions_SetInputModelPath`, `SetInputModelFromBuffer`, `SetOutputModelExternalInitializersFile`, `SetEpContextEmbedMode`, `SetOutputModelPath`, `SetOutputModelBuffer`, `CompileModel`, `ReleaseModelCompilationOptions`, `SetFlags`, `SetEpContextBinaryInformation`, `SetGraphOptimizationLevel` |
 | **LoRA** | `CreateLoraAdapter`, `CreateLoraAdapterFromArray`, `ReleaseLoraAdapter` |
-
----
-
-## Missing APIs — Inference-Related, Normal Python Use
-
-### Group 1: Value/Tensor — Extended Operations (Medium Priority)
-
-| C API | Description | Status | API Ver |
-|---|---|---|---|
-| `IsTensor` | Check if an OrtValue is a tensor | | ≤10 |
-| `GetValueType` | Get ONNXType from OrtValue | | ≤10 |
-| `HasValue` | Check if optional OrtValue has data | | ≤10 |
-| `GetTensorMemoryInfo` | Get memory info of a tensor | | ≤10 |
-| `GetTensorSizeInBytes` | Get total tensor size in bytes | | 23 |
-| `FillStringTensor` | Fill a string tensor | | ≤10 |
-| `GetStringTensorDataLength` | Get total string tensor byte length | | ≤10 |
-| `GetStringTensorContent` | Get all string tensor content | | ≤10 |
-| `GetStringTensorElementLength` | Get length of one string element | | ≤10 |
-| `GetStringTensorElement` | Get one string element | | ≤10 |
-| `FillStringTensorElement` | Fill one string element | | ≤10 |
-| `GetResizedStringTensorElementBuffer` | Get resized buffer for a string element | | 15 |
-| `GetValue` | Extract element from map/sequence OrtValue | | ≤10 |
-| `GetValueCount` | Get count in map/sequence OrtValue | | ≤10 |
-| `CreateValue` | Create a map/sequence OrtValue | | ≤10 |
-
-### Group 2: TypeInfo — Map/Sequence/Optional Introspection (Medium Priority)
-
-Needs new ORT opaque type wrappers (MapTypeInfo, SequenceTypeInfo, OptionalTypeInfo).
-
-| C API | Description | Status | API Ver |
-|---|---|---|---|
-| `CastTypeInfoToMapTypeInfo` | Cast to OrtMapTypeInfo | | ≤10 |
-| `CastTypeInfoToSequenceTypeInfo` | Cast to OrtSequenceTypeInfo | | ≤10 |
-| `CastTypeInfoToOptionalTypeInfo` | Cast to OrtOptionalTypeInfo | | 15 |
-| `GetMapKeyType` | Get map key element type | | ≤10 |
-| `GetMapValueType` | Get map value type info | | ≤10 |
-| `GetSequenceElementType` | Get sequence element type info | | ≤10 |
-| `GetOptionalContainedTypeInfo` | Get contained type of optional | | 15 |
 
 ---
 
@@ -249,8 +211,6 @@ Needs new ORT opaque type wrappers (MapTypeInfo, SequenceTypeInfo, OptionalTypeI
 
 | Priority | Group | API Count | Use Case |
 |---|---|---|---|
-| **Medium** | Group 1 — Value/Tensor extended | 15 | String tensors, map/sequence values (major design change needed) |
-| **Medium** | Group 2 — TypeInfo Map/Seq/Optional | 7 | Map/sequence/optional type introspection |
 | N/A | Training APIs | ~40+ | **Not inference** |
 | N/A | Custom Op / KernelInfo / KernelContext | ~40+ | **Not for normal Python use** |
 | N/A | EP implementation | ~60+ | **Not for normal Python use** |

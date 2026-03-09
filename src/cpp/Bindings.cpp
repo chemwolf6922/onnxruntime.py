@@ -180,13 +180,25 @@ NB_MODULE(_ortpy, m) {
     nanobind::class_<Ortpy::Value>(m, "Value")
         .def(nanobind::init<const Ortpy::NpArray&>(),
             nanobind::arg("numpy_array"))
+        .def_static("from_strings", &Ortpy::Value::FromStrings,
+            nanobind::arg("strings"),
+            nanobind::arg("shape") = std::nullopt)
         .def("numpy", &Ortpy::Value::ToNumpy)
         .def_prop_ro("shape", &Ortpy::Value::GetShape)
         .def_prop_ro("dtype",
             [](const Ortpy::Value& self) -> std::string {
                 return Ortpy::Value::NpTypeToName(
                     Ortpy::Value::OrtTypeToNpType(self.GetType()));
-            });
+            })
+        .def_prop_ro("is_tensor", &Ortpy::Value::IsTensor)
+        .def_prop_ro("value_type", &Ortpy::Value::GetValueType)
+        .def_prop_ro("has_value", &Ortpy::Value::HasValue)
+        .def("get_tensor_memory_info", &Ortpy::Value::GetTensorMemoryInfo)
+        .def("get_tensor_size_in_bytes", &Ortpy::Value::GetTensorSizeInBytes)
+        .def("get_strings", &Ortpy::Value::GetStrings)
+        .def("__getitem__", &Ortpy::Value::GetElement,
+            nanobind::arg("index"))
+        .def("__len__", &Ortpy::Value::GetCount);
 
     nanobind::class_<Ortpy::MemoryInfo>(m, "MemoryInfo")
         .def(nanobind::init<>())
@@ -349,13 +361,21 @@ NB_MODULE(_ortpy, m) {
             &Ortpy::ModelMetadata::LookupCustomMetadata,
             nanobind::arg("key"));
 
-    nanobind::class_<Ortpy::TensorInfo>(m, "TensorInfo")
-        .def_ro("shape", &Ortpy::TensorInfo::shape)
-        .def_ro("dimensions", &Ortpy::TensorInfo::dimensions)
-        .def_prop_ro("dtype",
-            [](const Ortpy::TensorInfo& self) -> std::string {
-                return Ortpy::Value::NpTypeToName(self.dtype);
-            });
+    nanobind::class_<Ortpy::TypeInfo>(m, "TypeInfo")
+        .def_prop_ro("onnx_type", &Ortpy::TypeInfo::GetOnnxType)
+        .def_prop_ro("denotation", &Ortpy::TypeInfo::GetDenotation)
+        /** Tensor accessors */
+        .def_prop_ro("shape", &Ortpy::TypeInfo::GetShape)
+        .def_prop_ro("dimensions", &Ortpy::TypeInfo::GetSymbolicDimensions)
+        .def_prop_ro("element_type", &Ortpy::TypeInfo::GetElementType)
+        .def_prop_ro("dtype", &Ortpy::TypeInfo::GetElementTypeName)
+        /** Map accessors */
+        .def_prop_ro("map_key_type", &Ortpy::TypeInfo::GetMapKeyType)
+        .def_prop_ro("map_value_type", &Ortpy::TypeInfo::GetMapValueType)
+        /** Sequence accessor */
+        .def_prop_ro("sequence_element_type", &Ortpy::TypeInfo::GetSequenceElementType)
+        /** Optional accessor */
+        .def_prop_ro("optional_contained_type", &Ortpy::TypeInfo::GetOptionalContainedType);
 
     nanobind::class_<Ortpy::RunOptions>(m, "RunOptions")
         .def(nanobind::init<>())
@@ -408,6 +428,11 @@ NB_MODULE(_ortpy, m) {
             nanobind::arg("run_options") = std::nullopt)
         .def("run",
             &Ortpy::Session::Run,
+            nanobind::arg("inputs"),
+            nanobind::arg("output_names") = std::nullopt,
+            nanobind::arg("run_options") = std::nullopt)
+        .def("run_with_ort_values",
+            &Ortpy::Session::RunWithOrtValues,
             nanobind::arg("inputs"),
             nanobind::arg("output_names") = std::nullopt,
             nanobind::arg("run_options") = std::nullopt);

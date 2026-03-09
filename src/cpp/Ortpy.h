@@ -221,26 +221,26 @@ namespace Ortpy
     public:
         static void ReleaseOrtType(OrtTypeInfo* ptr);
         using OrtTypeWrapper::OrtTypeWrapper;
+
+        /** Type discriminator */
         ONNXType GetOnnxType() const;
         std::string GetDenotation() const;
-    };
 
-    class TensorTypeAndShapeInfo : public OrtTypeWrapper<OrtTensorTypeAndShapeInfo, TensorTypeAndShapeInfo>
-    {
-    public:
-        static void ReleaseOrtType(OrtTensorTypeAndShapeInfo* ptr);
-        using OrtTypeWrapper::OrtTypeWrapper;
-        size_t GetElementCount() const;
-    };
+        /** Tensor accessors (throw if not TENSOR/SPARSETENSOR) */
+        std::vector<int64_t> GetShape() const;
+        std::vector<std::string> GetSymbolicDimensions() const;
+        ONNXTensorElementDataType GetElementType() const;
+        std::string GetElementTypeName() const;
 
-    struct TensorInfo
-    {
-        std::vector<int64_t> shape;
-        std::vector<std::string> dimensions;
-        nanobind::dlpack::dtype dtype;
+        /** Map accessors (throw if not MAP) */
+        ONNXTensorElementDataType GetMapKeyType() const;
+        TypeInfo GetMapValueType() const;
 
-        TensorInfo() = default;
-        TensorInfo(const TypeInfo& typeInfo);
+        /** Sequence accessor (throw if not SEQUENCE) */
+        TypeInfo GetSequenceElementType() const;
+
+        /** Optional accessor (throw if not OPTIONAL) */
+        TypeInfo GetOptionalContainedType() const;
     };
 
     class ModelMetadata : public OrtTypeWrapper<OrtModelMetadata, ModelMetadata>
@@ -304,8 +304,8 @@ namespace Ortpy
         Session(const std::string& modelPath, const SessionOptions& options);
         Session(const nanobind::bytes& modelBytes, const SessionOptions& options);
 
-        std::unordered_map<std::string, TensorInfo> GetInputInfo() const;
-        std::unordered_map<std::string, TensorInfo> GetOutputInfo() const;
+        std::unordered_map<std::string, TypeInfo> GetInputInfo() const;
+        std::unordered_map<std::string, TypeInfo> GetOutputInfo() const;
         ModelMetadata GetModelMetadata() const;
         std::string EndProfiling() const;
         uint64_t GetProfilingStartTimeNs() const;
@@ -324,6 +324,10 @@ namespace Ortpy
             const std::unordered_map<std::string, NpArray>& inputs,
             const std::optional<std::vector<std::string>>& outputNames,
             const std::optional<std::reference_wrapper<RunOptions>>& runOptions) const;
+        std::unordered_map<std::string, Value> RunWithOrtValues(
+            const std::unordered_map<std::string, Value>& inputs,
+            const std::optional<std::vector<std::string>>& outputNames,
+            const std::optional<std::reference_wrapper<RunOptions>>& runOptions) const;
     };
 
     class Value
@@ -337,13 +341,30 @@ namespace Ortpy
         Value(OrtValue* ptr);
         Value(const NpArray& NpArray);
         Value(const std::vector<int64_t>& shape, ONNXTensorElementDataType type);
+        static Value FromStrings(const std::vector<std::string>& strings,
+            const std::optional<std::vector<int64_t>>& shape = std::nullopt);
 
+        /** Introspection */
+        bool IsTensor() const;
+        ONNXType GetValueType() const;
+        bool HasValue() const;
+        std::optional<MemoryInfo> GetTensorMemoryInfo() const;
+        size_t GetTensorSizeInBytes() const;
+
+        /** Tensor data access (numeric tensors only) */
         NpArray ToNumpy() const;
         operator OrtValue*() const;
         ONNXTensorElementDataType GetType() const;
         std::vector<int64_t> GetShape() const;
         size_t GetSize() const;
         void* GetData() const;
+
+        /** String tensor access */
+        std::vector<std::string> GetStrings() const;
+
+        /** Map/Sequence access */
+        Value GetElement(int index) const;
+        size_t GetCount() const;
     private:
         struct State
         {

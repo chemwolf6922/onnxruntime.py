@@ -902,48 +902,132 @@ std::string Ortpy::TypeInfo::GetDenotation() const
     return denotation ? std::string(denotation, len) : "";
 }
 
-/** TensorTypeAndShapeInfo */
-
-void Ortpy::TensorTypeAndShapeInfo::ReleaseOrtType(OrtTensorTypeAndShapeInfo* ptr)
+std::vector<int64_t> Ortpy::TypeInfo::GetShape() const
 {
-    GetApi()->ReleaseTensorTypeAndShapeInfo(ptr);
-}
-
-size_t Ortpy::TensorTypeAndShapeInfo::GetElementCount() const
-{
-    size_t count = 0;
-    Ortpy::Status status = GetApi()->GetTensorShapeElementCount(_ptr, &count);
-    status.Check();
-    return count;
-}
-
-/** TensorInfo */
-
-Ortpy::TensorInfo::TensorInfo(const TypeInfo& typeInfo)
-{
+    ONNXType type = GetOnnxType();
+    if (type != ONNX_TYPE_TENSOR && type != ONNX_TYPE_SPARSETENSOR)
+    {
+        throw std::runtime_error("shape is only available for tensor types");
+    }
     const OrtTensorTypeAndShapeInfo* tensorInfo = nullptr;
-    /** DO NOT free the tensorInfo. It's bind to the typeInfo */
-    Ortpy::Status status = GetApi()->CastTypeInfoToTensorInfo(typeInfo, &tensorInfo);
+    Ortpy::Status status = GetApi()->CastTypeInfoToTensorInfo(_ptr, &tensorInfo);
     status.Check();
     size_t dimCount = 0;
     status = GetApi()->GetDimensionsCount(tensorInfo, &dimCount);
     status.Check();
-    shape.resize(dimCount);
-    /** The value will be -1 if the dimension is not fixed. */
+    std::vector<int64_t> shape(dimCount);
     status = GetApi()->GetDimensions(tensorInfo, shape.data(), dimCount);
     status.Check();
-    std::vector<const char*> dimensionsRaw(dimCount, nullptr);
-    status = GetApi()->GetSymbolicDimensions(tensorInfo, dimensionsRaw.data(), dimCount);
-    status.Check();
-    dimensions.reserve(dimCount);
-    for (size_t j = 0; j < dimCount; ++j)
+    return shape;
+}
+
+std::vector<std::string> Ortpy::TypeInfo::GetSymbolicDimensions() const
+{
+    ONNXType type = GetOnnxType();
+    if (type != ONNX_TYPE_TENSOR && type != ONNX_TYPE_SPARSETENSOR)
     {
-        dimensions.emplace_back(dimensionsRaw[j] ? dimensionsRaw[j] : "");
+        throw std::runtime_error("dimensions is only available for tensor types");
     }
-    ONNXTensorElementDataType type;
-    status = GetApi()->GetTensorElementType(tensorInfo, &type);
+    const OrtTensorTypeAndShapeInfo* tensorInfo = nullptr;
+    Ortpy::Status status = GetApi()->CastTypeInfoToTensorInfo(_ptr, &tensorInfo);
     status.Check();
-    dtype = Ortpy::Value::OrtTypeToNpType(type);
+    size_t dimCount = 0;
+    status = GetApi()->GetDimensionsCount(tensorInfo, &dimCount);
+    status.Check();
+    std::vector<const char*> raw(dimCount, nullptr);
+    status = GetApi()->GetSymbolicDimensions(tensorInfo, raw.data(), dimCount);
+    status.Check();
+    std::vector<std::string> result;
+    result.reserve(dimCount);
+    for (size_t i = 0; i < dimCount; ++i)
+    {
+        result.emplace_back(raw[i] ? raw[i] : "");
+    }
+    return result;
+}
+
+ONNXTensorElementDataType Ortpy::TypeInfo::GetElementType() const
+{
+    ONNXType type = GetOnnxType();
+    if (type != ONNX_TYPE_TENSOR && type != ONNX_TYPE_SPARSETENSOR)
+    {
+        throw std::runtime_error("element_type is only available for tensor types");
+    }
+    const OrtTensorTypeAndShapeInfo* tensorInfo = nullptr;
+    Ortpy::Status status = GetApi()->CastTypeInfoToTensorInfo(_ptr, &tensorInfo);
+    status.Check();
+    ONNXTensorElementDataType elemType;
+    status = GetApi()->GetTensorElementType(tensorInfo, &elemType);
+    status.Check();
+    return elemType;
+}
+
+std::string Ortpy::TypeInfo::GetElementTypeName() const
+{
+    auto elemType = GetElementType();
+    if (elemType == ONNX_TENSOR_ELEMENT_DATA_TYPE_STRING)
+        return "string";
+    return Value::NpTypeToName(Value::OrtTypeToNpType(elemType));
+}
+
+ONNXTensorElementDataType Ortpy::TypeInfo::GetMapKeyType() const
+{
+    if (GetOnnxType() != ONNX_TYPE_MAP)
+    {
+        throw std::runtime_error("map_key_type is only available for map types");
+    }
+    const OrtMapTypeInfo* mapInfo = nullptr;
+    Ortpy::Status status = GetApi()->CastTypeInfoToMapTypeInfo(_ptr, &mapInfo);
+    status.Check();
+    ONNXTensorElementDataType keyType;
+    status = GetApi()->GetMapKeyType(mapInfo, &keyType);
+    status.Check();
+    return keyType;
+}
+
+Ortpy::TypeInfo Ortpy::TypeInfo::GetMapValueType() const
+{
+    if (GetOnnxType() != ONNX_TYPE_MAP)
+    {
+        throw std::runtime_error("map_value_type is only available for map types");
+    }
+    const OrtMapTypeInfo* mapInfo = nullptr;
+    Ortpy::Status status = GetApi()->CastTypeInfoToMapTypeInfo(_ptr, &mapInfo);
+    status.Check();
+    OrtTypeInfo* valueTypeInfo = nullptr;
+    status = GetApi()->GetMapValueType(mapInfo, &valueTypeInfo);
+    status.Check();
+    return TypeInfo{ valueTypeInfo };
+}
+
+Ortpy::TypeInfo Ortpy::TypeInfo::GetSequenceElementType() const
+{
+    if (GetOnnxType() != ONNX_TYPE_SEQUENCE)
+    {
+        throw std::runtime_error("element_type is only available for sequence types");
+    }
+    const OrtSequenceTypeInfo* seqInfo = nullptr;
+    Ortpy::Status status = GetApi()->CastTypeInfoToSequenceTypeInfo(_ptr, &seqInfo);
+    status.Check();
+    OrtTypeInfo* elemTypeInfo = nullptr;
+    status = GetApi()->GetSequenceElementType(seqInfo, &elemTypeInfo);
+    status.Check();
+    return TypeInfo{ elemTypeInfo };
+}
+
+Ortpy::TypeInfo Ortpy::TypeInfo::GetOptionalContainedType() const
+{
+    if (GetOnnxType() != ONNX_TYPE_OPTIONAL)
+    {
+        throw std::runtime_error("contained_type is only available for optional types");
+    }
+    const OrtOptionalTypeInfo* optInfo = nullptr;
+    Ortpy::Status status = GetApi()->CastTypeInfoToOptionalTypeInfo(_ptr, &optInfo);
+    status.Check();
+    OrtTypeInfo* containedTypeInfo = nullptr;
+    status = GetApi()->GetOptionalContainedTypeInfo(optInfo, &containedTypeInfo);
+    status.Check();
+    return TypeInfo{ containedTypeInfo };
 }
 
 /** ModelMetadata */
@@ -1178,12 +1262,12 @@ void Ortpy::Session::ReleaseOrtType(OrtSession* ptr)
     GetApi()->ReleaseSession(ptr);
 }
 
-std::unordered_map<std::string, Ortpy::TensorInfo> Ortpy::Session::GetInputInfo() const
+std::unordered_map<std::string, Ortpy::TypeInfo> Ortpy::Session::GetInputInfo() const
 {
     size_t inputCount = 0;
     Ortpy::Status status = GetApi()->SessionGetInputCount(_ptr, &inputCount);
     status.Check();
-    std::unordered_map<std::string, Ortpy::TensorInfo> inputInfo;
+    std::unordered_map<std::string, Ortpy::TypeInfo> inputInfo;
     auto allocator = GetAllocator();
     for (size_t i = 0; i < inputCount; i++)
     {
@@ -1196,18 +1280,17 @@ std::unordered_map<std::string, Ortpy::TensorInfo> Ortpy::Session::GetInputInfo(
         OrtTypeInfo* typeInfoRaw = nullptr;
         status = GetApi()->SessionGetInputTypeInfo(_ptr, i, &typeInfoRaw);
         status.Check();
-        TypeInfo typeInfo{ typeInfoRaw };
-        inputInfo.emplace(name, TensorInfo{ typeInfo });
+        inputInfo.emplace(name, TypeInfo{ typeInfoRaw });
     }
     return inputInfo;
 }
 
-std::unordered_map<std::string, Ortpy::TensorInfo> Ortpy::Session::GetOutputInfo() const
+std::unordered_map<std::string, Ortpy::TypeInfo> Ortpy::Session::GetOutputInfo() const
 {
     size_t outputCount = 0;
     Ortpy::Status status = GetApi()->SessionGetOutputCount(_ptr, &outputCount);
     status.Check();
-    std::unordered_map<std::string, Ortpy::TensorInfo> outputInfo;
+    std::unordered_map<std::string, Ortpy::TypeInfo> outputInfo;
     auto allocator = GetAllocator();
     for (size_t i = 0; i < outputCount; i++)
     {
@@ -1220,8 +1303,7 @@ std::unordered_map<std::string, Ortpy::TensorInfo> Ortpy::Session::GetOutputInfo
         OrtTypeInfo* typeInfoRaw = nullptr;
         status = GetApi()->SessionGetOutputTypeInfo(_ptr, i, &typeInfoRaw);
         status.Check();
-        TypeInfo typeInfo{ typeInfoRaw };
-        outputInfo.emplace(name, TensorInfo{ typeInfo });
+        outputInfo.emplace(name, TypeInfo{ typeInfoRaw });
     }
     return outputInfo;
 }
@@ -1258,22 +1340,30 @@ std::unordered_map<std::string, Ortpy::Value> Ortpy::Session::Run(
     const std::optional<std::vector<std::string>>& outputNamesOpt,
     const std::optional<std::reference_wrapper<Ortpy::RunOptions>>& runOptionsOpt) const
 {
-    /** Create input values */
+    std::unordered_map<std::string, Value> ortInputs;
+    ortInputs.reserve(inputs.size());
+    for (const auto& [name, npArray] : inputs)
+    {
+        ortInputs.emplace(name, Value{ npArray });
+    }
+    return RunWithOrtValues(ortInputs, outputNamesOpt, runOptionsOpt);
+}
+
+std::unordered_map<std::string, Ortpy::Value> Ortpy::Session::RunWithOrtValues(
+    const std::unordered_map<std::string, Ortpy::Value>& inputs,
+    const std::optional<std::vector<std::string>>& outputNamesOpt,
+    const std::optional<std::reference_wrapper<Ortpy::RunOptions>>& runOptionsOpt) const
+{
     std::vector<const char*> inputNamesView;
     inputNamesView.reserve(inputs.size());
-    std::vector<Value> inputValues;
-    inputValues.reserve(inputs.size());
     std::vector<OrtValue*> inputValuesView;
     inputValuesView.reserve(inputs.size());
-    for (const auto& pair : inputs)
+    for (const auto& [name, value] : inputs)
     {
-        inputNamesView.emplace_back(pair.first.c_str());
-        Value value{ pair.second };
-        inputValuesView.emplace_back(value);
-        /** move won't affect the raw pointer in the view array. */
-        inputValues.emplace_back(std::move(value));
+        inputNamesView.push_back(name.c_str());
+        inputValuesView.push_back(value);
     }
-    /** Create output values (part 1) */
+
     std::vector<std::string> outputNames;
     std::vector<const char*> outputNamesView;
     if (outputNamesOpt.has_value())
@@ -1294,11 +1384,8 @@ std::unordered_map<std::string, Ortpy::Value> Ortpy::Session::Run(
     {
         outputNamesView.push_back(name.c_str());
     }
-    /** Let ort allocate the output values as we may not known their shapes */
+
     std::vector<OrtValue*> outputValues(outputNamesView.size(), nullptr);
-    std::vector<Value> outputValuesWrapper;
-    outputValuesWrapper.reserve(outputNamesView.size());
-    /** Run the session */
     OrtRunOptions* runOptions = runOptionsOpt.has_value()
         ? static_cast<OrtRunOptions*>(runOptionsOpt.value().get())
         : nullptr;
@@ -1307,17 +1394,11 @@ std::unordered_map<std::string, Ortpy::Value> Ortpy::Session::Run(
         inputNamesView.data(), inputValuesView.data(), inputs.size(),
         outputNamesView.data(), outputNamesView.size(), outputValues.data());
     status.Check();
-    /** Create output values (part 2) */
-    for (auto value : outputValues)
-    {
-        /** safe guard the raw values first. */
-        outputValuesWrapper.emplace_back(value);
-    }
+
     std::unordered_map<std::string, Value> outputs;
-    size_t i = 0;
-    for (const auto& name : outputNames)
+    for (size_t i = 0; i < outputNames.size(); ++i)
     {
-        outputs.emplace(name, std::move(outputValuesWrapper[i++]));
+        outputs.emplace(outputNames[i], Value{ outputValues[i] });
     }
     return outputs;
 }
@@ -1340,6 +1421,26 @@ Ortpy::Value::Value(OrtValue* ptr)
         return;
     }
     _state->ortValue = ptr;
+
+    /** Only create a numpy view for numeric (non-string) tensors */
+    int isTensor = 0;
+    GetApi()->IsTensor(ptr, &isTensor);
+    if (!isTensor)
+    {
+        return;
+    }
+
+    /** Check for string tensor — can't create numpy view */
+    OrtTensorTypeAndShapeInfo* info = nullptr;
+    GetApi()->GetTensorTypeAndShape(ptr, &info);
+    ONNXTensorElementDataType elemType;
+    GetApi()->GetTensorElementType(info, &elemType);
+    GetApi()->ReleaseTensorTypeAndShapeInfo(info);
+    if (elemType == ONNX_TENSOR_ELEMENT_DATA_TYPE_STRING)
+    {
+        return;
+    }
+
     auto npType = OrtTypeToNpType(GetType());
     auto ortShape = GetShape();
     std::vector<size_t> npShape(ortShape.begin(), ortShape.end());
@@ -1416,6 +1517,155 @@ Ortpy::NpArray Ortpy::Value::ToNumpy() const
         throw std::runtime_error("Value does not hold a numpy array");
     }
     return *(_state->npArray);
+}
+
+bool Ortpy::Value::IsTensor() const
+{
+    if (_state->ortValue == nullptr) return false;
+    int result = 0;
+    Ortpy::Status status = GetApi()->IsTensor(_state->ortValue, &result);
+    status.Check();
+    return result != 0;
+}
+
+ONNXType Ortpy::Value::GetValueType() const
+{
+    if (_state->ortValue == nullptr)
+    {
+        throw std::runtime_error("Value is empty");
+    }
+    ONNXType type;
+    Ortpy::Status status = GetApi()->GetValueType(_state->ortValue, &type);
+    status.Check();
+    return type;
+}
+
+bool Ortpy::Value::HasValue() const
+{
+    if (_state->ortValue == nullptr) return false;
+    int result = 0;
+    Ortpy::Status status = GetApi()->HasValue(_state->ortValue, &result);
+    status.Check();
+    return result != 0;
+}
+
+std::optional<Ortpy::MemoryInfo> Ortpy::Value::GetTensorMemoryInfo() const
+{
+    if (!IsTensor())
+    {
+        throw std::runtime_error("Value is not a tensor");
+    }
+    const OrtMemoryInfo* mi = nullptr;
+    Ortpy::Status status = GetApi()->GetTensorMemoryInfo(_state->ortValue, &mi);
+    status.Check();
+    if (mi == nullptr) return std::nullopt;
+    const char* name = nullptr;
+    GetApi()->MemoryInfoGetName(mi, &name);
+    OrtAllocatorType allocType;
+    GetApi()->MemoryInfoGetType(mi, &allocType);
+    int id = 0;
+    GetApi()->MemoryInfoGetId(mi, &id);
+    OrtMemType memType;
+    GetApi()->MemoryInfoGetMemType(mi, &memType);
+    return MemoryInfo{ name ? name : "Cpu", allocType, id, memType };
+}
+
+size_t Ortpy::Value::GetTensorSizeInBytes() const
+{
+    if (!IsTensor())
+    {
+        throw std::runtime_error("Value is not a tensor");
+    }
+    size_t size = 0;
+    Ortpy::Status status = GetApi()->GetTensorSizeInBytes(_state->ortValue, &size);
+    status.Check();
+    return size;
+}
+
+Ortpy::Value Ortpy::Value::FromStrings(const std::vector<std::string>& strings,
+    const std::optional<std::vector<int64_t>>& shapeOpt)
+{
+    std::vector<int64_t> shape;
+    if (shapeOpt.has_value())
+    {
+        shape = shapeOpt.value();
+    }
+    else
+    {
+        shape = { static_cast<int64_t>(strings.size()) };
+    }
+    OrtValue* ortValue = nullptr;
+    Ortpy::Status status = GetApi()->CreateTensorAsOrtValue(
+        GetAllocator(), shape.data(), shape.size(),
+        ONNX_TENSOR_ELEMENT_DATA_TYPE_STRING, &ortValue);
+    status.Check();
+    std::vector<const char*> cstrs;
+    cstrs.reserve(strings.size());
+    for (const auto& s : strings)
+    {
+        cstrs.push_back(s.c_str());
+    }
+    status = GetApi()->FillStringTensor(ortValue, cstrs.data(), cstrs.size());
+    if (status.GetErrorCode() != ORT_OK)
+    {
+        GetApi()->ReleaseValue(ortValue);
+        status.Check();
+    }
+    Value val{ nullptr };
+    val._state->ortValue = ortValue;
+    return val;
+}
+
+std::vector<std::string> Ortpy::Value::GetStrings() const
+{
+    if (!IsTensor())
+    {
+        throw std::runtime_error("Value is not a tensor");
+    }
+    if (GetType() != ONNX_TENSOR_ELEMENT_DATA_TYPE_STRING)
+    {
+        throw std::runtime_error("Value is not a string tensor");
+    }
+    auto shape = GetShape();
+    size_t count = 1;
+    for (auto d : shape) count *= static_cast<size_t>(d);
+    std::vector<std::string> result;
+    result.reserve(count);
+    for (size_t i = 0; i < count; ++i)
+    {
+        size_t len = 0;
+        Ortpy::Status status = GetApi()->GetStringTensorElementLength(_state->ortValue, i, &len);
+        status.Check();
+        std::string s(len, '\0');
+        status = GetApi()->GetStringTensorElement(_state->ortValue, len, i, s.data());
+        status.Check();
+        result.push_back(std::move(s));
+    }
+    return result;
+}
+
+Ortpy::Value Ortpy::Value::GetElement(int index) const
+{
+    if (_state->ortValue == nullptr)
+    {
+        throw std::runtime_error("Value is empty");
+    }
+    OrtValue* element = nullptr;
+    Ortpy::Status status = GetApi()->GetValue(_state->ortValue, index, GetAllocator(), &element);
+    status.Check();
+    return Value{ element };
+}
+
+size_t Ortpy::Value::GetCount() const
+{
+    if (_state->ortValue == nullptr)
+    {
+        throw std::runtime_error("Value is empty");
+    }
+    size_t count = 0;
+    Ortpy::Status status = GetApi()->GetValueCount(_state->ortValue, &count);
+    status.Check();
+    return count;
 }
 
 ONNXTensorElementDataType Ortpy::Value::GetType() const
