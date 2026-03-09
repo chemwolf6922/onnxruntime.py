@@ -1108,7 +1108,7 @@ std::vector<std::string> Ortpy::TypeInfo::GetSymbolicDimensions() const
     return result;
 }
 
-ONNXTensorElementDataType Ortpy::TypeInfo::GetElementType() const
+std::string Ortpy::TypeInfo::GetElementType() const
 {
     ONNXType type = GetOnnxType();
     if (type != ONNX_TYPE_TENSOR && type != ONNX_TYPE_SPARSETENSOR)
@@ -1121,18 +1121,12 @@ ONNXTensorElementDataType Ortpy::TypeInfo::GetElementType() const
     ONNXTensorElementDataType elemType;
     status = GetApi()->GetTensorElementType(tensorInfo, &elemType);
     status.Check();
-    return elemType;
-}
-
-std::string Ortpy::TypeInfo::GetElementTypeName() const
-{
-    auto elemType = GetElementType();
     if (elemType == ONNX_TENSOR_ELEMENT_DATA_TYPE_STRING)
         return "string";
     return Value::NpTypeToName(Value::OrtTypeToNpType(elemType));
 }
 
-ONNXTensorElementDataType Ortpy::TypeInfo::GetMapKeyType() const
+std::string Ortpy::TypeInfo::GetMapKeyType() const
 {
     if (GetOnnxType() != ONNX_TYPE_MAP)
     {
@@ -1144,7 +1138,9 @@ ONNXTensorElementDataType Ortpy::TypeInfo::GetMapKeyType() const
     ONNXTensorElementDataType keyType;
     status = GetApi()->GetMapKeyType(mapInfo, &keyType);
     status.Check();
-    return keyType;
+    if (keyType == ONNX_TENSOR_ELEMENT_DATA_TYPE_STRING)
+        return "string";
+    return Value::NpTypeToName(Value::OrtTypeToNpType(keyType));
 }
 
 Ortpy::TypeInfo Ortpy::TypeInfo::GetMapValueType() const
@@ -1523,21 +1519,19 @@ uint64_t Ortpy::Session::GetProfilingStartTimeNs() const
 std::unordered_map<std::string, Ortpy::Value> Ortpy::Session::Run(
     const std::unordered_map<std::string, Ortpy::NpArray>& inputs,
     const std::optional<std::vector<std::string>>& outputNamesOpt,
-    const std::optional<std::reference_wrapper<Ortpy::RunOptions>>& runOptionsOpt) const
+    const Ortpy::RunOptions* runOptionsOpt) const
 {
     std::unordered_map<std::string, Value> ortInputs;
     ortInputs.reserve(inputs.size());
     for (const auto& [name, npArray] : inputs)
-    {
         ortInputs.emplace(name, Value{ npArray });
-    }
     return RunWithOrtValues(ortInputs, outputNamesOpt, runOptionsOpt);
 }
 
 std::unordered_map<std::string, Ortpy::Value> Ortpy::Session::RunWithOrtValues(
     const std::unordered_map<std::string, Ortpy::Value>& inputs,
     const std::optional<std::vector<std::string>>& outputNamesOpt,
-    const std::optional<std::reference_wrapper<Ortpy::RunOptions>>& runOptionsOpt) const
+    const Ortpy::RunOptions* runOptionsOpt) const
 {
     std::vector<const char*> inputNamesView;
     inputNamesView.reserve(inputs.size());
@@ -1571,8 +1565,8 @@ std::unordered_map<std::string, Ortpy::Value> Ortpy::Session::RunWithOrtValues(
     }
 
     std::vector<OrtValue*> outputValues(outputNamesView.size(), nullptr);
-    OrtRunOptions* runOptions = runOptionsOpt.has_value()
-        ? static_cast<OrtRunOptions*>(runOptionsOpt.value().get())
+    OrtRunOptions* runOptions = runOptionsOpt
+        ? static_cast<OrtRunOptions*>(*runOptionsOpt)
         : nullptr;
     Ortpy::Status status = GetApi()->Run(
         _ptr, runOptions,
@@ -2251,10 +2245,10 @@ Ortpy::IoBinding Ortpy::Session::CreateIoBinding() const
 
 void Ortpy::Session::RunWithBinding(
     IoBinding& binding,
-    const std::optional<std::reference_wrapper<RunOptions>>& runOptionsOpt) const
+    const RunOptions* runOptionsOpt) const
 {
-    OrtRunOptions* runOptions = runOptionsOpt.has_value()
-        ? static_cast<OrtRunOptions*>(runOptionsOpt.value().get())
+    OrtRunOptions* runOptions = runOptionsOpt
+        ? static_cast<OrtRunOptions*>(*runOptionsOpt)
         : nullptr;
     Ortpy::Status status = GetApi()->RunWithBinding(_ptr, runOptions, binding);
     status.Check();

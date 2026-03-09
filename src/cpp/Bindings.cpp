@@ -391,8 +391,7 @@ NB_MODULE(_ortpy, m) {
         /** Tensor accessors */
         .def_prop_ro("shape", &Ortpy::TypeInfo::GetShape)
         .def_prop_ro("dimensions", &Ortpy::TypeInfo::GetSymbolicDimensions)
-        .def_prop_ro("element_type", &Ortpy::TypeInfo::GetElementType)
-        .def_prop_ro("dtype", &Ortpy::TypeInfo::GetElementTypeName)
+        .def_prop_ro("dtype", &Ortpy::TypeInfo::GetElementType)
         /** Map accessors */
         .def_prop_ro("map_key_type", &Ortpy::TypeInfo::GetMapKeyType)
         .def_prop_ro("map_value_type", &Ortpy::TypeInfo::GetMapValueType)
@@ -450,17 +449,17 @@ NB_MODULE(_ortpy, m) {
         .def("run_with_binding",
             &Ortpy::Session::RunWithBinding,
             nanobind::arg("io_binding"),
-            nanobind::arg("run_options") = std::nullopt)
+            nanobind::arg("run_options") = nullptr)
         .def("run",
             &Ortpy::Session::Run,
             nanobind::arg("inputs"),
             nanobind::arg("output_names") = std::nullopt,
-            nanobind::arg("run_options") = std::nullopt)
+            nanobind::arg("run_options") = nullptr)
         .def("run_with_ort_values",
             &Ortpy::Session::RunWithOrtValues,
             nanobind::arg("inputs"),
             nanobind::arg("output_names") = std::nullopt,
-            nanobind::arg("run_options") = std::nullopt);
+            nanobind::arg("run_options") = nullptr);
 
     nanobind::class_<Ortpy::LoraAdapter>(m, "LoraAdapter")
         .def(nanobind::init<const std::string&>(),

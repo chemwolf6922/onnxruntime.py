@@ -250,11 +250,10 @@ namespace Ortpy
         /** Tensor accessors (throw if not TENSOR/SPARSETENSOR) */
         std::vector<int64_t> GetShape() const;
         std::vector<std::string> GetSymbolicDimensions() const;
-        ONNXTensorElementDataType GetElementType() const;
-        std::string GetElementTypeName() const;
+        std::string GetElementType() const;
 
         /** Map accessors (throw if not MAP) */
-        ONNXTensorElementDataType GetMapKeyType() const;
+        std::string GetMapKeyType() const;
         TypeInfo GetMapValueType() const;
 
         /** Sequence accessor (throw if not SEQUENCE) */
@@ -339,17 +338,15 @@ namespace Ortpy
         std::vector<EpAssignedSubgraph> GetEpGraphAssignmentInfo() const;
 #endif /** ORT_API_VERSION >= 24 */
         IoBinding CreateIoBinding() const;
-        void RunWithBinding(
-            IoBinding& binding,
-            const std::optional<std::reference_wrapper<RunOptions>>& runOptions) const;
+        void RunWithBinding(IoBinding& binding, const RunOptions* runOptions = nullptr) const;
         std::unordered_map<std::string, Value> Run(
             const std::unordered_map<std::string, NpArray>& inputs,
-            const std::optional<std::vector<std::string>>& outputNames,
-            const std::optional<std::reference_wrapper<RunOptions>>& runOptions) const;
+            const std::optional<std::vector<std::string>>& outputNames = std::nullopt,
+            const RunOptions* runOptions = nullptr) const;
         std::unordered_map<std::string, Value> RunWithOrtValues(
             const std::unordered_map<std::string, Value>& inputs,
-            const std::optional<std::vector<std::string>>& outputNames,
-            const std::optional<std::reference_wrapper<RunOptions>>& runOptions) const;
+            const std::optional<std::vector<std::string>>& outputNames = std::nullopt,
+            const RunOptions* runOptions = nullptr) const;
     };
 
     class Value
