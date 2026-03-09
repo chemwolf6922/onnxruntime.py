@@ -1,4 +1,4 @@
-Metadata-Version: 2.2
+Metadata-Version: 2.4
 Name: ortpy
 Version: ORTPY_VERSION
 Summary: ONNX runtime python binding
@@ -19,4 +19,39 @@ Requires-Dist: ORTPY_LIB_REQUIREMENT; extra == "with-lib"
 Description-Content-Type: text/markdown
 
 # ortpy
-TODO: documentation
+
+A thin Python language binding for the [ONNX Runtime](https://onnxruntime.ai/) library on it's C APIs. Unlike the official `onnxruntime` package, which bundles the full runtime implementation in a heavy Python wheel. This gives you the flexibility to manage the runtime libraries yourself.
+
+## Installation
+
+```bash
+pip install ortpy[with-lib]
+```
+
+The `with-lib` extra bundles the ONNX Runtime shared libraries. If you manage the runtime libraries yourself, install without the extra:
+
+```bash
+pip install ortpy
+```
+
+## Quick Start
+
+```python
+import ortpy as ort
+import numpy as np
+
+# Create a session
+session_options = ort.SessionOptions()
+session = ort.Session("model.onnx", session_options)
+
+# Inspect inputs and outputs
+for name, info in session.get_input_info().items():
+    print(f"Input '{name}': shape={info.shape}, dtype={info.dtype}")
+
+for name, info in session.get_output_info().items():
+    print(f"Output '{name}': shape={info.shape}, dtype={info.dtype}")
+
+# Run inference
+inputs = {"input": np.random.randn(1, 3, 224, 224).astype(np.float32)}
+outputs = session.run(inputs)
+```

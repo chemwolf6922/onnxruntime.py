@@ -133,7 +133,7 @@ parser.add_argument(
     help="Select the build configuration to pack")
 args = parser.parse_args()
 
-PROJECT_DIR = Path(__file__).parent
+PROJECT_DIR = Path(__file__).parent.parent
 WHEEL_BUILD_DIR = PROJECT_DIR / "build-wheel"
 WHEEL_OUTPUT_DIR = PROJECT_DIR / "dist"
 WHEEL_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)

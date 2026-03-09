@@ -22,7 +22,7 @@ runs:
 
     - name: Download ONNX Runtime
       run: |
-        python get_onnxruntime.py --require-all-platforms
+        python tools/get_onnxruntime.py --require-all-platforms
       shell: powershell
       env:
         GITHUB_TOKEN: ${{ github.token }}

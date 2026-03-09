@@ -2,7 +2,7 @@ from pathlib import Path
 import re
 import git
 
-_PROJECT_PATH = Path(__file__).parent.resolve()
+_PROJECT_PATH = Path(__file__).parent.resolve().parent
 repo = git.Repo(_PROJECT_PATH)
 
 def _get_tag() -> str | None:

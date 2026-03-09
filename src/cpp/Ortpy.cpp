@@ -90,6 +90,63 @@ std::unordered_map<std::string, std::string> Ortpy::KeyValuePairsToMap(const Ort
     return map;
 }
 
+std::vector<std::string> Ortpy::GetAvailableProviders()
+{
+    char** providers = nullptr;
+    int count = 0;
+    Ortpy::Status status = GetApi()->GetAvailableProviders(&providers, &count);
+    status.Check();
+    std::vector<std::string> result;
+    result.reserve(count);
+    for (int i = 0; i < count; ++i)
+    {
+        result.emplace_back(providers[i]);
+    }
+    GetApi()->ReleaseAvailableProviders(providers, count);
+    return result;
+}
+
+OrtCompiledModelCompatibility Ortpy::GetModelCompatibilityForEpDevices(
+    const std::vector<EpDevice>& epDevices, const std::string& compatibilityInfo)
+{
+    std::vector<const OrtEpDevice*> ptrs;
+    ptrs.reserve(epDevices.size());
+    for (const auto& d : epDevices)
+    {
+        ptrs.push_back(d);
+    }
+    OrtCompiledModelCompatibility result;
+    Ortpy::Status status = GetApi()->GetModelCompatibilityForEpDevices(
+        ptrs.data(), ptrs.size(), compatibilityInfo.c_str(), &result);
+    status.Check();
+    return result;
+}
+
+/** Helper: split unordered_map into key/value arrays for ORT APIs */
+static void MapToKeyValueArrays(
+    const std::unordered_map<std::string, std::string>& map,
+    std::vector<const char*>& keys,
+    std::vector<const char*>& values)
+{
+    keys.reserve(map.size());
+    values.reserve(map.size());
+    for (const auto& [k, v] : map)
+    {
+        keys.push_back(k.c_str());
+        values.push_back(v.c_str());
+    }
+}
+
+/** Helper: RAII wrapper for ORT provider options using a release function */
+template <typename T>
+using OrtProviderOptionsPtr = std::unique_ptr<T, std::function<void(T*)>>;
+
+template <typename T, typename ReleaseFn>
+OrtProviderOptionsPtr<T> MakeProviderOptions(T* raw, ReleaseFn releaseFn)
+{
+    return OrtProviderOptionsPtr<T>(raw, [releaseFn](T* ptr) { releaseFn(ptr); });
+}
+
 /** HardwareDevice */
 
 Ortpy::HardwareDevice::HardwareDevice(const OrtHardwareDevice* device)
@@ -128,6 +185,24 @@ Ortpy::EpDevice::EpDevice(const OrtEpDevice* epDevice)
 Ortpy::EpDevice::operator const OrtEpDevice*() const
 {
     return _ptr;
+}
+
+std::optional<Ortpy::MemoryInfo> Ortpy::EpDevice::GetMemoryInfo(OrtDeviceMemoryType memoryType) const
+{
+    const OrtMemoryInfo* mi = GetApi()->EpDevice_MemoryInfo(_ptr, memoryType);
+    if (mi == nullptr)
+    {
+        return std::nullopt;
+    }
+    const char* name = nullptr;
+    GetApi()->MemoryInfoGetName(mi, &name);
+    OrtAllocatorType allocType;
+    GetApi()->MemoryInfoGetType(mi, &allocType);
+    int id = 0;
+    GetApi()->MemoryInfoGetId(mi, &id);
+    OrtMemType memType;
+    GetApi()->MemoryInfoGetMemType(mi, &memType);
+    return MemoryInfo{ name ? name : "Cpu", allocType, id, memType };
 }
 
 /** Status */
@@ -224,11 +299,147 @@ std::vector<Ortpy::EpDevice> Ortpy::Env::GetEpDevices() const
     return devices;
 }
 
+void Ortpy::Env::UpdateLogLevel(OrtLoggingLevel level)
+{
+    Ortpy::Status status = GetApi()->UpdateEnvWithCustomLogLevel(_ptr, level);
+    status.Check();
+}
+
+#if ORT_API_VERSION >= 24
+std::vector<Ortpy::HardwareDevice> Ortpy::Env::GetHardwareDevices() const
+{
+    size_t numDevices = 0;
+    Ortpy::Status status = GetApi()->GetNumHardwareDevices(_ptr, &numDevices);
+    status.Check();
+    std::vector<const OrtHardwareDevice*> devicesRaw(numDevices, nullptr);
+    status = GetApi()->GetHardwareDevices(_ptr, devicesRaw.data(), numDevices);
+    status.Check();
+    std::vector<HardwareDevice> devices;
+    devices.reserve(numDevices);
+    for (size_t i = 0; i < numDevices; ++i)
+    {
+        devices.emplace_back(devicesRaw[i]);
+    }
+    return devices;
+}
+
+Ortpy::Env::DeviceEpIncompatibilityInfo Ortpy::Env::GetHardwareDeviceEpIncompatibilityDetails(
+    const std::string& epName, const HardwareDevice& device) const
+{
+    /** We need the raw OrtHardwareDevice*. Re-enumerate to find matching device. */
+    size_t numDevices = 0;
+    Ortpy::Status status = GetApi()->GetNumHardwareDevices(_ptr, &numDevices);
+    status.Check();
+    std::vector<const OrtHardwareDevice*> devicesRaw(numDevices, nullptr);
+    status = GetApi()->GetHardwareDevices(_ptr, devicesRaw.data(), numDevices);
+    status.Check();
+    const OrtHardwareDevice* matchedDevice = nullptr;
+    for (size_t i = 0; i < numDevices; ++i)
+    {
+        if (GetApi()->HardwareDevice_VendorId(devicesRaw[i]) == device.vendorId &&
+            GetApi()->HardwareDevice_DeviceId(devicesRaw[i]) == device.deviceId)
+        {
+            matchedDevice = devicesRaw[i];
+            break;
+        }
+    }
+    if (matchedDevice == nullptr)
+    {
+        throw std::runtime_error("Hardware device not found");
+    }
+    OrtDeviceEpIncompatibilityDetails* details = nullptr;
+    status = GetApi()->GetHardwareDeviceEpIncompatibilityDetails(_ptr, epName.c_str(), matchedDevice, &details);
+    status.Check();
+    DeviceEpIncompatibilityInfo info{};
+    status = GetApi()->DeviceEpIncompatibilityDetails_GetReasonsBitmask(details, &info.reasonsBitmask);
+    status.Check();
+    const char* notes = nullptr;
+    status = GetApi()->DeviceEpIncompatibilityDetails_GetNotes(details, &notes);
+    status.Check();
+    info.notes = notes ? notes : "";
+    status = GetApi()->DeviceEpIncompatibilityDetails_GetErrorCode(details, &info.errorCode);
+    status.Check();
+    GetApi()->ReleaseDeviceEpIncompatibilityDetails(details);
+    return info;
+}
+
+std::optional<std::string> Ortpy::Env::GetCompatibilityInfoFromModel(
+    const std::string& modelPath, const std::string& epType) const
+{
+    auto allocator = GetAllocator();
+    char* compatInfo = nullptr;
+    Ortpy::Status status = GetApi()->GetCompatibilityInfoFromModel(
+        StringToOrtString(modelPath).c_str(), epType.c_str(), allocator, &compatInfo);
+    status.Check();
+    if (compatInfo == nullptr)
+    {
+        return std::nullopt;
+    }
+    std::string result{ compatInfo };
+    allocator->Free(allocator, compatInfo);
+    return result;
+}
+
+std::optional<std::string> Ortpy::Env::GetCompatibilityInfoFromModelBytes(
+    const nanobind::bytes& modelData, const std::string& epType) const
+{
+    auto allocator = GetAllocator();
+    char* compatInfo = nullptr;
+    Ortpy::Status status = GetApi()->GetCompatibilityInfoFromModelBytes(
+        modelData.data(), modelData.size(), epType.c_str(), allocator, &compatInfo);
+    status.Check();
+    if (compatInfo == nullptr)
+    {
+        return std::nullopt;
+    }
+    std::string result{ compatInfo };
+    allocator->Free(allocator, compatInfo);
+    return result;
+}
+#endif /** ORT_API_VERSION >= 24 */
+
 /** ModelCompilationOptions */
 
 void Ortpy::ModelCompilationOptions::ReleaseOrtType(OrtModelCompilationOptions* ptr)
 {
     GetApi()->GetCompileApi()->ReleaseModelCompilationOptions(ptr);
+}
+
+int Ortpy::ModelCompilationOptions::TpTraverse(PyObject* self, visitproc visit, void* arg) noexcept
+{
+    try
+    {
+        #if PY_VERSION_HEX >= 0x03090000
+            Py_VISIT(Py_TYPE(self));
+        #endif /** PY_VERSION_HEX >= 0x03090000 */
+
+        if (!nanobind::inst_ready(self))
+        {
+            return 0;
+        }
+        ModelCompilationOptions* opts = nanobind::inst_ptr<ModelCompilationOptions>(self);
+        nanobind::handle writeFuncHandle = nanobind::find(opts->_writeFunc);
+        Py_VISIT(writeFuncHandle.ptr());
+        return 0;
+    }
+    catch(...)
+    {
+        return -1;
+    }
+}
+
+int Ortpy::ModelCompilationOptions::TpClear(PyObject* self) noexcept
+{
+    try
+    {
+        ModelCompilationOptions* opts = nanobind::inst_ptr<ModelCompilationOptions>(self);
+        opts->_writeFunc = nullptr;
+        return 0;
+    }
+    catch(...)
+    {
+        return -1;
+    }
 }
 
 void Ortpy::ModelCompilationOptions::SetInputModelPath(const std::string& path)
@@ -284,6 +495,63 @@ nanobind::bytes Ortpy::ModelCompilationOptions::CompileModelToBuffer()
     nanobind::bytes result{ static_cast<const char*>(buffer), bufferSize };
     GetAllocator()->Free(GetAllocator(), buffer);
     return result;
+}
+
+void Ortpy::ModelCompilationOptions::SetFlags(uint32_t flags)
+{
+    Ortpy::Status status = GetApi()->GetCompileApi()->ModelCompilationOptions_SetFlags(_ptr, flags);
+    status.Check();
+}
+
+void Ortpy::ModelCompilationOptions::SetEpContextBinaryInformation(
+    const std::string& outputDirectory, const std::string& modelName)
+{
+    Ortpy::Status status = GetApi()->GetCompileApi()->ModelCompilationOptions_SetEpContextBinaryInformation(
+        _ptr, StringToOrtString(outputDirectory).c_str(), StringToOrtString(modelName).c_str());
+    status.Check();
+}
+
+void Ortpy::ModelCompilationOptions::SetGraphOptimizationLevel(GraphOptimizationLevel level)
+{
+    Ortpy::Status status = GetApi()->GetCompileApi()->ModelCompilationOptions_SetGraphOptimizationLevel(_ptr, level);
+    status.Check();
+}
+
+void Ortpy::ModelCompilationOptions::SetOutputModelWriteFunc(const WriteFunction& writeFunc)
+{
+    if (writeFunc == nullptr)
+    {
+        throw std::invalid_argument("write function cannot be null");
+    }
+    _writeFunc = writeFunc;
+    OrtWriteBufferFunc wrapper = [](
+        void* state,
+        const void* buffer,
+        size_t buffer_num_bytes
+    ) -> OrtStatus* {
+        try
+        {
+            auto* opts = static_cast<Ortpy::ModelCompilationOptions*>(state);
+            if (opts->_writeFunc)
+            {
+                nanobind::gil_scoped_acquire acquire;
+                nanobind::bytes data{ static_cast<const char*>(buffer), buffer_num_bytes };
+                opts->_writeFunc(data);
+            }
+            return nullptr;
+        }
+        catch (const std::exception& ex)
+        {
+            return GetApi()->CreateStatus(ORT_FAIL, ex.what());
+        }
+        catch (...)
+        {
+            return GetApi()->CreateStatus(ORT_FAIL, "Unknown error in write callback");
+        }
+    };
+    Ortpy::Status status = GetApi()->GetCompileApi()->ModelCompilationOptions_SetOutputModelWriteFunc(
+        _ptr, wrapper, this);
+    status.Check();
 }
 
 /** LibraryHandle */
@@ -430,15 +698,17 @@ int Ortpy::SessionOptions::TpTraverse(PyObject* self, visitproc visit, void* arg
         // of an object on its associated type object.
         #if PY_VERSION_HEX >= 0x03090000
             Py_VISIT(Py_TYPE(self));
-        #endif
+        #endif /** PY_VERSION_HEX >= 0x03090000 */
 
         if (!nanobind::inst_ready(self))
         {
             return 0;
         }
         SessionOptions* options = nanobind::inst_ptr<SessionOptions>(self);
-        nanobind::handle handle = nanobind::find(options->_delegate);
-        Py_VISIT(handle.ptr());
+        nanobind::handle delegateHandle = nanobind::find(options->_delegate);
+        Py_VISIT(delegateHandle.ptr());
+        nanobind::handle loggingHandle = nanobind::find(options->_loggingFunction);
+        Py_VISIT(loggingHandle.ptr());
         return 0;
     }
     catch(...)
@@ -452,8 +722,9 @@ int Ortpy::SessionOptions::TpClear(PyObject* self) noexcept
     try
     {
         SessionOptions* options = nanobind::inst_ptr<SessionOptions>(self);
-        /** Break circular reference */
+        /** Break circular references */
         options->_delegate = nullptr;
+        options->_loggingFunction = nullptr;
         return 0;
     }
     catch(...)
@@ -569,6 +840,206 @@ Ortpy::ModelCompilationOptions Ortpy::SessionOptions::CreateModelCompilationOpti
     return ModelCompilationOptions{ options };
 }
 
+void Ortpy::SessionOptions::SetUserLoggingFunction(const LoggingFunction& loggingFunction)
+{
+    if (loggingFunction == nullptr)
+    {
+        throw std::invalid_argument("logging function cannot be null");
+    }
+    _loggingFunction = loggingFunction;
+    OrtLoggingFunction wrapper = [](
+        void* param,
+        OrtLoggingLevel severity,
+        const char* category,
+        const char* logid,
+        const char* code_location,
+        const char* message
+    ) {
+        try
+        {
+            auto* options = static_cast<Ortpy::SessionOptions*>(param);
+            auto& fn = options->_loggingFunction;
+            if (fn)
+            {
+                nanobind::gil_scoped_acquire acquire;
+                fn(severity,
+                   category ? category : "",
+                   logid ? logid : "",
+                   code_location ? code_location : "",
+                   message ? message : "");
+            }
+        }
+        catch (...)
+        {
+            /** Cannot propagate through C void callback. Suppress. */
+        }
+    };
+    Ortpy::Status status = GetApi()->SetUserLoggingFunction(_ptr, wrapper, this);
+    status.Check();
+}
+
+void Ortpy::SessionOptions::RegisterCustomOpsLibrary_V2(const std::string& libraryName)
+{
+    Ortpy::Status status = GetApi()->RegisterCustomOpsLibrary_V2(
+        _ptr, StringToOrtString(libraryName).c_str());
+    status.Check();
+}
+
+void Ortpy::SessionOptions::RegisterCustomOpsUsingFunction(const std::string& registrationFuncName)
+{
+    Ortpy::Status status = GetApi()->RegisterCustomOpsUsingFunction(
+        _ptr, registrationFuncName.c_str());
+    status.Check();
+}
+
+void Ortpy::SessionOptions::EnableOrtCustomOps()
+{
+    Ortpy::Status status = GetApi()->EnableOrtCustomOps(_ptr);
+    status.Check();
+}
+
+void Ortpy::SessionOptions::AddFreeDimensionOverride(const std::string& dimDenotation, int64_t dimValue)
+{
+    Ortpy::Status status = GetApi()->AddFreeDimensionOverride(
+        _ptr, dimDenotation.c_str(), dimValue);
+    status.Check();
+}
+
+void Ortpy::SessionOptions::AddFreeDimensionOverrideByName(const std::string& dimName, int64_t dimValue)
+{
+    Ortpy::Status status = GetApi()->AddFreeDimensionOverrideByName(
+        _ptr, dimName.c_str(), dimValue);
+    status.Check();
+}
+
+void Ortpy::SessionOptions::DisablePerSessionThreads()
+{
+    Ortpy::Status status = GetApi()->DisablePerSessionThreads(_ptr);
+    status.Check();
+}
+
+void Ortpy::SessionOptions::AddSessionConfigEntry(const std::string& configKey, const std::string& configValue)
+{
+    Ortpy::Status status = GetApi()->AddSessionConfigEntry(
+        _ptr, configKey.c_str(), configValue.c_str());
+    status.Check();
+}
+
+bool Ortpy::SessionOptions::HasSessionConfigEntry(const std::string& configKey) const
+{
+    int out = 0;
+    Ortpy::Status status = GetApi()->HasSessionConfigEntry(_ptr, configKey.c_str(), &out);
+    status.Check();
+    return out != 0;
+}
+
+std::string Ortpy::SessionOptions::GetSessionConfigEntry(const std::string& configKey) const
+{
+    /** First call to get size */
+    size_t size = 0;
+    Ortpy::Status status = GetApi()->GetSessionConfigEntry(_ptr, configKey.c_str(), nullptr, &size);
+    status.Check();
+    std::string value(size, '\0');
+    status = GetApi()->GetSessionConfigEntry(_ptr, configKey.c_str(), value.data(), &size);
+    status.Check();
+    /** Remove trailing null */
+    if (!value.empty() && value.back() == '\0')
+    {
+        value.pop_back();
+    }
+    return value;
+}
+
+std::unordered_map<std::string, std::string> Ortpy::SessionOptions::GetSessionOptionsConfigEntries() const
+{
+    OrtKeyValuePairs* pairs = nullptr;
+    Ortpy::Status status = GetApi()->GetSessionOptionsConfigEntries(_ptr, &pairs);
+    status.Check();
+    auto result = KeyValuePairsToMap(pairs);
+    GetApi()->ReleaseKeyValuePairs(pairs);
+    return result;
+}
+
+void Ortpy::SessionOptions::SetDeterministicCompute(bool value)
+{
+    Ortpy::Status status = GetApi()->SetDeterministicCompute(_ptr, value);
+    status.Check();
+}
+
+void Ortpy::SessionOptions::SetLoadCancellationFlag(bool cancel)
+{
+    Ortpy::Status status = GetApi()->SessionOptionsSetLoadCancellationFlag(_ptr, cancel);
+    status.Check();
+}
+
+void Ortpy::SessionOptions::AddInitializer(const std::string& name, const Value& value)
+{
+    Ortpy::Status status = GetApi()->AddInitializer(
+        _ptr, name.c_str(), static_cast<OrtValue*>(value));
+    status.Check();
+}
+
+void Ortpy::SessionOptions::AddExternalInitializers(
+    const std::unordered_map<std::string, Value>& initializers)
+{
+    std::vector<const char*> names;
+    std::vector<const OrtValue*> values;
+    names.reserve(initializers.size());
+    values.reserve(initializers.size());
+    for (const auto& [name, value] : initializers)
+    {
+        names.push_back(name.c_str());
+        values.push_back(static_cast<OrtValue*>(value));
+    }
+    Ortpy::Status status = GetApi()->AddExternalInitializers(
+        _ptr, names.data(), values.data(), names.size());
+    status.Check();
+}
+
+void Ortpy::SessionOptions::AddExternalInitializersFromFilesInMemory(
+    const std::unordered_map<std::string, nanobind::bytes>& files)
+{
+    std::vector<std::basic_string<ORTCHAR_T>> ortNames;
+    std::vector<const ORTCHAR_T*> namesPtrs;
+    std::vector<char*> buffers;
+    std::vector<size_t> lengths;
+    ortNames.reserve(files.size());
+    namesPtrs.reserve(files.size());
+    buffers.reserve(files.size());
+    lengths.reserve(files.size());
+    for (const auto& [name, data] : files)
+    {
+        ortNames.push_back(StringToOrtString(name));
+        namesPtrs.push_back(ortNames.back().c_str());
+        buffers.push_back(const_cast<char*>(data.c_str()));
+        lengths.push_back(data.size());
+    }
+    Ortpy::Status status = GetApi()->AddExternalInitializersFromFilesInMemory(
+        _ptr, namesPtrs.data(), buffers.data(), lengths.data(), files.size());
+    status.Check();
+}
+
+Ortpy::SessionOptions Ortpy::SessionOptions::Clone() const
+{
+    OrtSessionOptions* cloned = nullptr;
+    Ortpy::Status status = GetApi()->CloneSessionOptions(_ptr, &cloned);
+    status.Check();
+    return SessionOptions{ cloned };
+}
+
+void Ortpy::SessionOptions::AppendExecutionProvider(
+    const std::string& providerName,
+    const std::unordered_map<std::string, std::string>& providerOptions)
+{
+    std::vector<const char*> keys;
+    std::vector<const char*> values;
+    MapToKeyValueArrays(providerOptions, keys, values);
+    Ortpy::Status status = GetApi()->SessionOptionsAppendExecutionProvider(
+        _ptr, providerName.c_str(),
+        keys.data(), values.data(), keys.size());
+    status.Check();
+}
+
 /** TypeInfo */
 
 void Ortpy::TypeInfo::ReleaseOrtType(OrtTypeInfo* ptr)
@@ -576,40 +1047,252 @@ void Ortpy::TypeInfo::ReleaseOrtType(OrtTypeInfo* ptr)
     GetApi()->ReleaseTypeInfo(ptr);
 }
 
-/** TensorTypeAndShapeInfo */
-
-void Ortpy::TensorTypeAndShapeInfo::ReleaseOrtType(OrtTensorTypeAndShapeInfo* ptr)
+ONNXType Ortpy::TypeInfo::GetOnnxType() const
 {
-    GetApi()->ReleaseTensorTypeAndShapeInfo(ptr);
+    ONNXType type;
+    Ortpy::Status status = GetApi()->GetOnnxTypeFromTypeInfo(_ptr, &type);
+    status.Check();
+    return type;
 }
 
-/** TensorInfo */
-
-Ortpy::TensorInfo::TensorInfo(const TypeInfo& typeInfo)
+std::string Ortpy::TypeInfo::GetDenotation() const
 {
+    const char* denotation = nullptr;
+    size_t len = 0;
+    Ortpy::Status status = GetApi()->GetDenotationFromTypeInfo(_ptr, &denotation, &len);
+    status.Check();
+    return denotation ? std::string(denotation, len) : "";
+}
+
+std::vector<int64_t> Ortpy::TypeInfo::GetShape() const
+{
+    ONNXType type = GetOnnxType();
+    if (type != ONNX_TYPE_TENSOR && type != ONNX_TYPE_SPARSETENSOR)
+    {
+        throw std::runtime_error("shape is only available for tensor types");
+    }
     const OrtTensorTypeAndShapeInfo* tensorInfo = nullptr;
-    /** DO NOT free the tensorInfo. It's bind to the typeInfo */
-    Ortpy::Status status = GetApi()->CastTypeInfoToTensorInfo(typeInfo, &tensorInfo);
+    Ortpy::Status status = GetApi()->CastTypeInfoToTensorInfo(_ptr, &tensorInfo);
     status.Check();
     size_t dimCount = 0;
     status = GetApi()->GetDimensionsCount(tensorInfo, &dimCount);
     status.Check();
-    shape.resize(dimCount);
-    /** The value will be -1 if the dimension is not fixed. */
+    std::vector<int64_t> shape(dimCount);
     status = GetApi()->GetDimensions(tensorInfo, shape.data(), dimCount);
     status.Check();
-    std::vector<const char*> dimensionsRaw(dimCount, nullptr);
-    status = GetApi()->GetSymbolicDimensions(tensorInfo, dimensionsRaw.data(), dimCount);
-    status.Check();
-    dimensions.reserve(dimCount);
-    for (size_t j = 0; j < dimCount; ++j)
+    return shape;
+}
+
+std::vector<std::string> Ortpy::TypeInfo::GetSymbolicDimensions() const
+{
+    ONNXType type = GetOnnxType();
+    if (type != ONNX_TYPE_TENSOR && type != ONNX_TYPE_SPARSETENSOR)
     {
-        dimensions.emplace_back(dimensionsRaw[j] ? dimensionsRaw[j] : "");
+        throw std::runtime_error("dimensions is only available for tensor types");
     }
-    ONNXTensorElementDataType type;
-    status = GetApi()->GetTensorElementType(tensorInfo, &type);
+    const OrtTensorTypeAndShapeInfo* tensorInfo = nullptr;
+    Ortpy::Status status = GetApi()->CastTypeInfoToTensorInfo(_ptr, &tensorInfo);
     status.Check();
-    dtype = Ortpy::Value::OrtTypeToNpType(type);
+    size_t dimCount = 0;
+    status = GetApi()->GetDimensionsCount(tensorInfo, &dimCount);
+    status.Check();
+    std::vector<const char*> raw(dimCount, nullptr);
+    status = GetApi()->GetSymbolicDimensions(tensorInfo, raw.data(), dimCount);
+    status.Check();
+    std::vector<std::string> result;
+    result.reserve(dimCount);
+    for (size_t i = 0; i < dimCount; ++i)
+    {
+        result.emplace_back(raw[i] ? raw[i] : "");
+    }
+    return result;
+}
+
+std::string Ortpy::TypeInfo::GetElementType() const
+{
+    ONNXType type = GetOnnxType();
+    if (type != ONNX_TYPE_TENSOR && type != ONNX_TYPE_SPARSETENSOR)
+    {
+        throw std::runtime_error("element_type is only available for tensor types");
+    }
+    const OrtTensorTypeAndShapeInfo* tensorInfo = nullptr;
+    Ortpy::Status status = GetApi()->CastTypeInfoToTensorInfo(_ptr, &tensorInfo);
+    status.Check();
+    ONNXTensorElementDataType elemType;
+    status = GetApi()->GetTensorElementType(tensorInfo, &elemType);
+    status.Check();
+    if (elemType == ONNX_TENSOR_ELEMENT_DATA_TYPE_STRING)
+        return "string";
+    return Value::NpTypeToName(Value::OrtTypeToNpType(elemType));
+}
+
+std::string Ortpy::TypeInfo::GetMapKeyType() const
+{
+    if (GetOnnxType() != ONNX_TYPE_MAP)
+    {
+        throw std::runtime_error("map_key_type is only available for map types");
+    }
+    const OrtMapTypeInfo* mapInfo = nullptr;
+    Ortpy::Status status = GetApi()->CastTypeInfoToMapTypeInfo(_ptr, &mapInfo);
+    status.Check();
+    ONNXTensorElementDataType keyType;
+    status = GetApi()->GetMapKeyType(mapInfo, &keyType);
+    status.Check();
+    if (keyType == ONNX_TENSOR_ELEMENT_DATA_TYPE_STRING)
+        return "string";
+    return Value::NpTypeToName(Value::OrtTypeToNpType(keyType));
+}
+
+Ortpy::TypeInfo Ortpy::TypeInfo::GetMapValueType() const
+{
+    if (GetOnnxType() != ONNX_TYPE_MAP)
+    {
+        throw std::runtime_error("map_value_type is only available for map types");
+    }
+    const OrtMapTypeInfo* mapInfo = nullptr;
+    Ortpy::Status status = GetApi()->CastTypeInfoToMapTypeInfo(_ptr, &mapInfo);
+    status.Check();
+    OrtTypeInfo* valueTypeInfo = nullptr;
+    status = GetApi()->GetMapValueType(mapInfo, &valueTypeInfo);
+    status.Check();
+    return TypeInfo{ valueTypeInfo };
+}
+
+Ortpy::TypeInfo Ortpy::TypeInfo::GetSequenceElementType() const
+{
+    if (GetOnnxType() != ONNX_TYPE_SEQUENCE)
+    {
+        throw std::runtime_error("element_type is only available for sequence types");
+    }
+    const OrtSequenceTypeInfo* seqInfo = nullptr;
+    Ortpy::Status status = GetApi()->CastTypeInfoToSequenceTypeInfo(_ptr, &seqInfo);
+    status.Check();
+    OrtTypeInfo* elemTypeInfo = nullptr;
+    status = GetApi()->GetSequenceElementType(seqInfo, &elemTypeInfo);
+    status.Check();
+    return TypeInfo{ elemTypeInfo };
+}
+
+Ortpy::TypeInfo Ortpy::TypeInfo::GetOptionalContainedType() const
+{
+    if (GetOnnxType() != ONNX_TYPE_OPTIONAL)
+    {
+        throw std::runtime_error("contained_type is only available for optional types");
+    }
+    const OrtOptionalTypeInfo* optInfo = nullptr;
+    Ortpy::Status status = GetApi()->CastTypeInfoToOptionalTypeInfo(_ptr, &optInfo);
+    status.Check();
+    OrtTypeInfo* containedTypeInfo = nullptr;
+    status = GetApi()->GetOptionalContainedTypeInfo(optInfo, &containedTypeInfo);
+    status.Check();
+    return TypeInfo{ containedTypeInfo };
+}
+
+/** ModelMetadata */
+
+void Ortpy::ModelMetadata::ReleaseOrtType(OrtModelMetadata* ptr)
+{
+    GetApi()->ReleaseModelMetadata(ptr);
+}
+
+std::string Ortpy::ModelMetadata::GetProducerName() const
+{
+    auto allocator = GetAllocator();
+    char* value = nullptr;
+    Ortpy::Status status = GetApi()->ModelMetadataGetProducerName(_ptr, allocator, &value);
+    status.Check();
+    std::string result{ value ? value : "" };
+    allocator->Free(allocator, value);
+    return result;
+}
+
+std::string Ortpy::ModelMetadata::GetGraphName() const
+{
+    auto allocator = GetAllocator();
+    char* value = nullptr;
+    Ortpy::Status status = GetApi()->ModelMetadataGetGraphName(_ptr, allocator, &value);
+    status.Check();
+    std::string result{ value ? value : "" };
+    allocator->Free(allocator, value);
+    return result;
+}
+
+std::string Ortpy::ModelMetadata::GetDomain() const
+{
+    auto allocator = GetAllocator();
+    char* value = nullptr;
+    Ortpy::Status status = GetApi()->ModelMetadataGetDomain(_ptr, allocator, &value);
+    status.Check();
+    std::string result{ value ? value : "" };
+    allocator->Free(allocator, value);
+    return result;
+}
+
+std::string Ortpy::ModelMetadata::GetDescription() const
+{
+    auto allocator = GetAllocator();
+    char* value = nullptr;
+    Ortpy::Status status = GetApi()->ModelMetadataGetDescription(_ptr, allocator, &value);
+    status.Check();
+    std::string result{ value ? value : "" };
+    allocator->Free(allocator, value);
+    return result;
+}
+
+std::string Ortpy::ModelMetadata::GetGraphDescription() const
+{
+    auto allocator = GetAllocator();
+    char* value = nullptr;
+    Ortpy::Status status = GetApi()->ModelMetadataGetGraphDescription(_ptr, allocator, &value);
+    status.Check();
+    std::string result{ value ? value : "" };
+    allocator->Free(allocator, value);
+    return result;
+}
+
+int64_t Ortpy::ModelMetadata::GetVersion() const
+{
+    int64_t value = 0;
+    Ortpy::Status status = GetApi()->ModelMetadataGetVersion(_ptr, &value);
+    status.Check();
+    return value;
+}
+
+std::unordered_map<std::string, std::string> Ortpy::ModelMetadata::GetCustomMetadataMap() const
+{
+    auto allocator = GetAllocator();
+    char** keys = nullptr;
+    int64_t numKeys = 0;
+    Ortpy::Status status = GetApi()->ModelMetadataGetCustomMetadataMapKeys(_ptr, allocator, &keys, &numKeys);
+    status.Check();
+    std::unordered_map<std::string, std::string> result;
+    for (int64_t i = 0; i < numKeys; ++i)
+    {
+        std::string key{ keys[i] };
+        allocator->Free(allocator, keys[i]);
+        char* value = nullptr;
+        status = GetApi()->ModelMetadataLookupCustomMetadataMap(_ptr, allocator, key.c_str(), &value);
+        status.Check();
+        result[key] = value ? value : "";
+        allocator->Free(allocator, value);
+    }
+    allocator->Free(allocator, keys);
+    return result;
+}
+
+std::optional<std::string> Ortpy::ModelMetadata::LookupCustomMetadata(const std::string& key) const
+{
+    auto allocator = GetAllocator();
+    char* value = nullptr;
+    Ortpy::Status status = GetApi()->ModelMetadataLookupCustomMetadataMap(_ptr, allocator, key.c_str(), &value);
+    status.Check();
+    if (value == nullptr)
+    {
+        return std::nullopt;
+    }
+    std::string result{ value };
+    allocator->Free(allocator, value);
+    return result;
 }
 
 /** RunOptions */
@@ -680,6 +1363,29 @@ void Ortpy::RunOptions::UnsetTerminate()
     status.Check();
 }
 
+void Ortpy::RunOptions::AddRunConfigEntry(const std::string& configKey, const std::string& configValue)
+{
+    Ortpy::Status status = GetApi()->AddRunConfigEntry(
+        _ptr, configKey.c_str(), configValue.c_str());
+    status.Check();
+}
+
+std::optional<std::string> Ortpy::RunOptions::GetRunConfigEntry(const std::string& configKey) const
+{
+    const char* value = GetApi()->GetRunConfigEntry(_ptr, configKey.c_str());
+    if (value == nullptr)
+    {
+        return std::nullopt;
+    }
+    return std::string{ value };
+}
+
+void Ortpy::RunOptions::AddActiveLoraAdapter(const LoraAdapter& adapter)
+{
+    Ortpy::Status status = GetApi()->RunOptionsAddActiveLoraAdapter(_ptr, adapter);
+    status.Check();
+}
+
 /** Session */
 
 Ortpy::Session::Session(const std::string& modelPath, const SessionOptions& options)
@@ -714,12 +1420,12 @@ void Ortpy::Session::ReleaseOrtType(OrtSession* ptr)
     GetApi()->ReleaseSession(ptr);
 }
 
-std::unordered_map<std::string, Ortpy::TensorInfo> Ortpy::Session::GetInputInfo() const
+std::unordered_map<std::string, Ortpy::TypeInfo> Ortpy::Session::GetInputInfo() const
 {
     size_t inputCount = 0;
     Ortpy::Status status = GetApi()->SessionGetInputCount(_ptr, &inputCount);
     status.Check();
-    std::unordered_map<std::string, Ortpy::TensorInfo> inputInfo;
+    std::unordered_map<std::string, Ortpy::TypeInfo> inputInfo;
     auto allocator = GetAllocator();
     for (size_t i = 0; i < inputCount; i++)
     {
@@ -732,18 +1438,17 @@ std::unordered_map<std::string, Ortpy::TensorInfo> Ortpy::Session::GetInputInfo(
         OrtTypeInfo* typeInfoRaw = nullptr;
         status = GetApi()->SessionGetInputTypeInfo(_ptr, i, &typeInfoRaw);
         status.Check();
-        TypeInfo typeInfo{ typeInfoRaw };
-        inputInfo.emplace(name, TensorInfo{ typeInfo });
+        inputInfo.emplace(name, TypeInfo{ typeInfoRaw });
     }
     return inputInfo;
 }
 
-std::unordered_map<std::string, Ortpy::TensorInfo> Ortpy::Session::GetOutputInfo() const
+std::unordered_map<std::string, Ortpy::TypeInfo> Ortpy::Session::GetOutputInfo() const
 {
     size_t outputCount = 0;
     Ortpy::Status status = GetApi()->SessionGetOutputCount(_ptr, &outputCount);
     status.Check();
-    std::unordered_map<std::string, Ortpy::TensorInfo> outputInfo;
+    std::unordered_map<std::string, Ortpy::TypeInfo> outputInfo;
     auto allocator = GetAllocator();
     for (size_t i = 0; i < outputCount; i++)
     {
@@ -756,33 +1461,88 @@ std::unordered_map<std::string, Ortpy::TensorInfo> Ortpy::Session::GetOutputInfo
         OrtTypeInfo* typeInfoRaw = nullptr;
         status = GetApi()->SessionGetOutputTypeInfo(_ptr, i, &typeInfoRaw);
         status.Check();
-        TypeInfo typeInfo{ typeInfoRaw };
-        outputInfo.emplace(name, TensorInfo{ typeInfo });
+        outputInfo.emplace(name, TypeInfo{ typeInfoRaw });
     }
     return outputInfo;
 }
 
-std::unordered_map<std::string, Ortpy::NpArray> Ortpy::Session::Run(
+std::unordered_map<std::string, Ortpy::TypeInfo> Ortpy::Session::GetOverridableInitializerInfo() const
+{
+    size_t count = 0;
+    Ortpy::Status status = GetApi()->SessionGetOverridableInitializerCount(_ptr, &count);
+    status.Check();
+    std::unordered_map<std::string, TypeInfo> result;
+    auto allocator = GetAllocator();
+    for (size_t i = 0; i < count; i++)
+    {
+        char* nameRaw = nullptr;
+        status = GetApi()->SessionGetOverridableInitializerName(_ptr, i, allocator, &nameRaw);
+        status.Check();
+        std::string name{ nameRaw };
+        allocator->Free(allocator, nameRaw);
+
+        OrtTypeInfo* typeInfoRaw = nullptr;
+        status = GetApi()->SessionGetOverridableInitializerTypeInfo(_ptr, i, &typeInfoRaw);
+        status.Check();
+        result.emplace(name, TypeInfo{ typeInfoRaw });
+    }
+    return result;
+}
+
+Ortpy::ModelMetadata Ortpy::Session::GetModelMetadata() const
+{
+    OrtModelMetadata* metadata = nullptr;
+    Ortpy::Status status = GetApi()->SessionGetModelMetadata(_ptr, &metadata);
+    status.Check();
+    return ModelMetadata{ metadata };
+}
+
+std::string Ortpy::Session::EndProfiling() const
+{
+    auto allocator = GetAllocator();
+    char* value = nullptr;
+    Ortpy::Status status = GetApi()->SessionEndProfiling(_ptr, allocator, &value);
+    status.Check();
+    std::string result{ value ? value : "" };
+    allocator->Free(allocator, value);
+    return result;
+}
+
+uint64_t Ortpy::Session::GetProfilingStartTimeNs() const
+{
+    uint64_t value = 0;
+    Ortpy::Status status = GetApi()->SessionGetProfilingStartTimeNs(_ptr, &value);
+    status.Check();
+    return value;
+}
+
+std::unordered_map<std::string, Ortpy::Value> Ortpy::Session::Run(
     const std::unordered_map<std::string, Ortpy::NpArray>& inputs,
     const std::optional<std::vector<std::string>>& outputNamesOpt,
-    const std::optional<std::reference_wrapper<Ortpy::RunOptions>>& runOptionsOpt) const
+    const Ortpy::RunOptions* runOptionsOpt) const
 {
-    /** Create input values */
+    std::unordered_map<std::string, Value> ortInputs;
+    ortInputs.reserve(inputs.size());
+    for (const auto& [name, npArray] : inputs)
+        ortInputs.emplace(name, Value{ npArray });
+    return RunWithOrtValues(ortInputs, outputNamesOpt, runOptionsOpt);
+}
+
+std::unordered_map<std::string, Ortpy::Value> Ortpy::Session::RunWithOrtValues(
+    const std::unordered_map<std::string, Ortpy::Value>& inputs,
+    const std::optional<std::vector<std::string>>& outputNamesOpt,
+    const Ortpy::RunOptions* runOptionsOpt) const
+{
     std::vector<const char*> inputNamesView;
     inputNamesView.reserve(inputs.size());
-    std::vector<Value> inputValues;
-    inputValues.reserve(inputs.size());
     std::vector<OrtValue*> inputValuesView;
     inputValuesView.reserve(inputs.size());
-    for (const auto& pair : inputs)
+    for (const auto& [name, value] : inputs)
     {
-        inputNamesView.emplace_back(pair.first.c_str());
-        Value value{ pair.second };
-        inputValuesView.emplace_back(value);
-        /** move won't affect the raw pointer in the view array. */
-        inputValues.emplace_back(std::move(value));
+        inputNamesView.push_back(name.c_str());
+        inputValuesView.push_back(value);
     }
-    /** Create output values (part 1) */
+
     std::vector<std::string> outputNames;
     std::vector<const char*> outputNamesView;
     if (outputNamesOpt.has_value())
@@ -803,30 +1563,21 @@ std::unordered_map<std::string, Ortpy::NpArray> Ortpy::Session::Run(
     {
         outputNamesView.push_back(name.c_str());
     }
-    /** Let ort allocate the output values as we may not known their shapes */
+
     std::vector<OrtValue*> outputValues(outputNamesView.size(), nullptr);
-    std::vector<Value> outputValuesWrapper;
-    outputValuesWrapper.reserve(outputNamesView.size());
-    /** Run the session */
-    OrtRunOptions* runOptions = runOptionsOpt.has_value()
-        ? static_cast<OrtRunOptions*>(runOptionsOpt.value().get())
+    OrtRunOptions* runOptions = runOptionsOpt
+        ? static_cast<OrtRunOptions*>(*runOptionsOpt)
         : nullptr;
     Ortpy::Status status = GetApi()->Run(
         _ptr, runOptions,
         inputNamesView.data(), inputValuesView.data(), inputs.size(),
         outputNamesView.data(), outputNamesView.size(), outputValues.data());
     status.Check();
-    /** Create output values (part 2) */
-    for (auto value : outputValues)
+
+    std::unordered_map<std::string, Value> outputs;
+    for (size_t i = 0; i < outputNames.size(); ++i)
     {
-        /** safe guard the raw values first. */
-        outputValuesWrapper.emplace_back(value);
-    }
-    std::unordered_map<std::string, NpArray> outputs;
-    size_t i = 0;
-    for (const auto& name : outputNames)
-    {
-        outputs[name] = outputValuesWrapper[i++];
+        outputs.emplace(outputNames[i], Value{ outputValues[i] });
     }
     return outputs;
 }
@@ -849,6 +1600,26 @@ Ortpy::Value::Value(OrtValue* ptr)
         return;
     }
     _state->ortValue = ptr;
+
+    /** Only create a numpy view for numeric (non-string) tensors */
+    int isTensor = 0;
+    GetApi()->IsTensor(ptr, &isTensor);
+    if (!isTensor)
+    {
+        return;
+    }
+
+    /** Check for string tensor — can't create numpy view */
+    OrtTensorTypeAndShapeInfo* info = nullptr;
+    GetApi()->GetTensorTypeAndShape(ptr, &info);
+    ONNXTensorElementDataType elemType;
+    GetApi()->GetTensorElementType(info, &elemType);
+    GetApi()->ReleaseTensorTypeAndShapeInfo(info);
+    if (elemType == ONNX_TENSOR_ELEMENT_DATA_TYPE_STRING)
+    {
+        return;
+    }
+
     auto npType = OrtTypeToNpType(GetType());
     auto ortShape = GetShape();
     std::vector<size_t> npShape(ortShape.begin(), ortShape.end());
@@ -867,7 +1638,8 @@ Ortpy::Value::Value(OrtValue* ptr)
 
 Ortpy::Value::Value(const NpArray& npArray)
 {
-    /** npArray (indirectly) holds the data, the Value holds a reference. */
+    /** Store the numpy array to keep the data alive. */
+    _state->npArray = npArray;
     auto ortType = NpTypeToOrtType(npArray.dtype());
     std::vector<int64_t> ortShape;
     auto ndim = npArray.ndim();
@@ -912,7 +1684,12 @@ Ortpy::Value::Value(const std::vector<int64_t>& ortShape, ONNXTensorElementDataT
         npType);
 }
 
-Ortpy::Value::operator Ortpy::NpArray() const
+Ortpy::Value::operator OrtValue*() const
+{
+    return _state->ortValue;
+}
+
+Ortpy::NpArray Ortpy::Value::ToNumpy() const
 {
     if (!_state->npArray.has_value())
     {
@@ -921,9 +1698,153 @@ Ortpy::Value::operator Ortpy::NpArray() const
     return *(_state->npArray);
 }
 
-Ortpy::Value::operator OrtValue*() const
+bool Ortpy::Value::IsTensor() const
 {
-    return _state->ortValue;
+    if (_state->ortValue == nullptr) return false;
+    int result = 0;
+    Ortpy::Status status = GetApi()->IsTensor(_state->ortValue, &result);
+    status.Check();
+    return result != 0;
+}
+
+ONNXType Ortpy::Value::GetValueType() const
+{
+    if (_state->ortValue == nullptr)
+    {
+        throw std::runtime_error("Value is empty");
+    }
+    ONNXType type;
+    Ortpy::Status status = GetApi()->GetValueType(_state->ortValue, &type);
+    status.Check();
+    return type;
+}
+
+bool Ortpy::Value::HasValue() const
+{
+    if (_state->ortValue == nullptr) return false;
+    int result = 0;
+    Ortpy::Status status = GetApi()->HasValue(_state->ortValue, &result);
+    status.Check();
+    return result != 0;
+}
+
+std::optional<Ortpy::MemoryInfo> Ortpy::Value::GetTensorMemoryInfo() const
+{
+    if (!IsTensor())
+    {
+        throw std::runtime_error("Value is not a tensor");
+    }
+    const OrtMemoryInfo* mi = nullptr;
+    Ortpy::Status status = GetApi()->GetTensorMemoryInfo(_state->ortValue, &mi);
+    status.Check();
+    if (mi == nullptr) return std::nullopt;
+    const char* name = nullptr;
+    GetApi()->MemoryInfoGetName(mi, &name);
+    OrtAllocatorType allocType;
+    GetApi()->MemoryInfoGetType(mi, &allocType);
+    int id = 0;
+    GetApi()->MemoryInfoGetId(mi, &id);
+    OrtMemType memType;
+    GetApi()->MemoryInfoGetMemType(mi, &memType);
+    return MemoryInfo{ name ? name : "Cpu", allocType, id, memType };
+}
+
+size_t Ortpy::Value::GetTensorSizeInBytes() const
+{
+    if (!IsTensor())
+    {
+        throw std::runtime_error("Value is not a tensor");
+    }
+    size_t size = 0;
+    Ortpy::Status status = GetApi()->GetTensorSizeInBytes(_state->ortValue, &size);
+    status.Check();
+    return size;
+}
+
+Ortpy::Value Ortpy::Value::FromStrings(const std::vector<std::string>& strings,
+    const std::optional<std::vector<int64_t>>& shapeOpt)
+{
+    std::vector<int64_t> shape;
+    if (shapeOpt.has_value())
+    {
+        shape = shapeOpt.value();
+    }
+    else
+    {
+        shape = { static_cast<int64_t>(strings.size()) };
+    }
+    OrtValue* ortValue = nullptr;
+    Ortpy::Status status = GetApi()->CreateTensorAsOrtValue(
+        GetAllocator(), shape.data(), shape.size(),
+        ONNX_TENSOR_ELEMENT_DATA_TYPE_STRING, &ortValue);
+    status.Check();
+    std::vector<const char*> cstrs;
+    cstrs.reserve(strings.size());
+    for (const auto& s : strings)
+    {
+        cstrs.push_back(s.c_str());
+    }
+    status = GetApi()->FillStringTensor(ortValue, cstrs.data(), cstrs.size());
+    if (status.GetErrorCode() != ORT_OK)
+    {
+        GetApi()->ReleaseValue(ortValue);
+        status.Check();
+    }
+    Value val{ nullptr };
+    val._state->ortValue = ortValue;
+    return val;
+}
+
+std::vector<std::string> Ortpy::Value::GetStrings() const
+{
+    if (!IsTensor())
+    {
+        throw std::runtime_error("Value is not a tensor");
+    }
+    if (GetType() != ONNX_TENSOR_ELEMENT_DATA_TYPE_STRING)
+    {
+        throw std::runtime_error("Value is not a string tensor");
+    }
+    auto shape = GetShape();
+    size_t count = 1;
+    for (auto d : shape) count *= static_cast<size_t>(d);
+    std::vector<std::string> result;
+    result.reserve(count);
+    for (size_t i = 0; i < count; ++i)
+    {
+        size_t len = 0;
+        Ortpy::Status status = GetApi()->GetStringTensorElementLength(_state->ortValue, i, &len);
+        status.Check();
+        std::string s(len, '\0');
+        status = GetApi()->GetStringTensorElement(_state->ortValue, len, i, s.data());
+        status.Check();
+        result.push_back(std::move(s));
+    }
+    return result;
+}
+
+Ortpy::Value Ortpy::Value::GetElement(int index) const
+{
+    if (_state->ortValue == nullptr)
+    {
+        throw std::runtime_error("Value is empty");
+    }
+    OrtValue* element = nullptr;
+    Ortpy::Status status = GetApi()->GetValue(_state->ortValue, index, GetAllocator(), &element);
+    status.Check();
+    return Value{ element };
+}
+
+size_t Ortpy::Value::GetCount() const
+{
+    if (_state->ortValue == nullptr)
+    {
+        throw std::runtime_error("Value is empty");
+    }
+    size_t count = 0;
+    Ortpy::Status status = GetApi()->GetValueCount(_state->ortValue, &count);
+    status.Check();
+    return count;
 }
 
 ONNXTensorElementDataType Ortpy::Value::GetType() const
@@ -1158,7 +2079,349 @@ Ortpy::MemoryInfo::MemoryInfo()
     status.Check();
 }
 
+Ortpy::MemoryInfo::MemoryInfo(const std::string& name, OrtAllocatorType allocatorType,
+                               int deviceId, OrtMemType memType)
+    : OrtTypeWrapper<OrtMemoryInfo, MemoryInfo>(nullptr)
+{
+    Ortpy::Status status = GetApi()->CreateMemoryInfo(
+        name.c_str(), allocatorType, deviceId, memType, &_ptr);
+    status.Check();
+}
+
+std::string Ortpy::MemoryInfo::GetName() const
+{
+    const char* name = nullptr;
+    Ortpy::Status status = GetApi()->MemoryInfoGetName(_ptr, &name);
+    status.Check();
+    return name ? name : "";
+}
+
+int Ortpy::MemoryInfo::GetDeviceId() const
+{
+    int id = 0;
+    Ortpy::Status status = GetApi()->MemoryInfoGetId(_ptr, &id);
+    status.Check();
+    return id;
+}
+
+OrtMemType Ortpy::MemoryInfo::GetMemType() const
+{
+    OrtMemType memType;
+    Ortpy::Status status = GetApi()->MemoryInfoGetMemType(_ptr, &memType);
+    status.Check();
+    return memType;
+}
+
+OrtAllocatorType Ortpy::MemoryInfo::GetAllocatorType() const
+{
+    OrtAllocatorType type;
+    Ortpy::Status status = GetApi()->MemoryInfoGetType(_ptr, &type);
+    status.Check();
+    return type;
+}
+
+OrtMemoryInfoDeviceType Ortpy::MemoryInfo::GetDeviceType() const
+{
+    OrtMemoryInfoDeviceType type;
+    GetApi()->MemoryInfoGetDeviceType(_ptr, &type);
+    return type;
+}
+
+bool Ortpy::MemoryInfo::operator==(const MemoryInfo& other) const
+{
+    int result = 0;
+    Ortpy::Status status = GetApi()->CompareMemoryInfo(_ptr, other._ptr, &result);
+    status.Check();
+    return result == 0;
+}
+
 void Ortpy::MemoryInfo::ReleaseOrtType(OrtMemoryInfo* ptr)
 {
     GetApi()->ReleaseMemoryInfo(ptr);
+}
+
+/** IoBinding */
+
+void Ortpy::IoBinding::ReleaseOrtType(OrtIoBinding* ptr)
+{
+    GetApi()->ReleaseIoBinding(ptr);
+}
+
+Ortpy::IoBinding::IoBinding(const Session& session)
+    : OrtTypeWrapper<OrtIoBinding, IoBinding>(nullptr)
+{
+    Ortpy::Status status = GetApi()->CreateIoBinding(session, &_ptr);
+    status.Check();
+}
+
+void Ortpy::IoBinding::BindInput(const std::string& name, const Value& value)
+{
+    _boundInputValues.push_back(value);
+    Ortpy::Status status = GetApi()->BindInput(_ptr, name.c_str(), value);
+    status.Check();
+}
+
+void Ortpy::IoBinding::BindOutput(const std::string& name, const Value& value)
+{
+    _boundOutputValues.push_back(value);
+    Ortpy::Status status = GetApi()->BindOutput(_ptr, name.c_str(), value);
+    status.Check();
+}
+
+void Ortpy::IoBinding::BindOutputToDevice(const std::string& name, const MemoryInfo& memInfo)
+{
+    Ortpy::Status status = GetApi()->BindOutputToDevice(_ptr, name.c_str(), memInfo);
+    status.Check();
+}
+
+std::unordered_map<std::string, Ortpy::Value> Ortpy::IoBinding::GetOutputs()
+{
+    auto allocator = GetAllocator();
+
+    /** Get output names */
+    char* namesBuffer = nullptr;
+    size_t* lengths = nullptr;
+    size_t count = 0;
+    Ortpy::Status status = GetApi()->GetBoundOutputNames(_ptr, allocator, &namesBuffer, &lengths, &count);
+    status.Check();
+
+    std::vector<std::string> names;
+    names.reserve(count);
+    size_t offset = 0;
+    for (size_t i = 0; i < count; ++i)
+    {
+        names.emplace_back(namesBuffer + offset, lengths[i]);
+        offset += lengths[i];
+    }
+    allocator->Free(allocator, namesBuffer);
+    allocator->Free(allocator, lengths);
+
+    /** Get output values */
+    OrtValue** values = nullptr;
+    size_t valueCount = 0;
+    status = GetApi()->GetBoundOutputValues(_ptr, allocator, &values, &valueCount);
+    status.Check();
+
+    std::unordered_map<std::string, Value> result;
+    for (size_t i = 0; i < valueCount; ++i)
+    {
+        result.emplace(names[i], Value{ values[i] });
+    }
+    allocator->Free(allocator, values);
+
+    return result;
+}
+
+void Ortpy::IoBinding::ClearInputs()
+{
+    _boundInputValues.clear();
+    GetApi()->ClearBoundInputs(_ptr);
+}
+
+void Ortpy::IoBinding::ClearOutputs()
+{
+    _boundOutputValues.clear();
+    GetApi()->ClearBoundOutputs(_ptr);
+}
+
+void Ortpy::IoBinding::SynchronizeInputs()
+{
+    Ortpy::Status status = GetApi()->SynchronizeBoundInputs(_ptr);
+    status.Check();
+}
+
+void Ortpy::IoBinding::SynchronizeOutputs()
+{
+    Ortpy::Status status = GetApi()->SynchronizeBoundOutputs(_ptr);
+    status.Check();
+}
+
+/** Session::IoBinding methods */
+
+Ortpy::IoBinding Ortpy::Session::CreateIoBinding() const
+{
+    return IoBinding{ *this };
+}
+
+void Ortpy::Session::RunWithBinding(
+    IoBinding& binding,
+    const RunOptions* runOptionsOpt) const
+{
+    OrtRunOptions* runOptions = runOptionsOpt
+        ? static_cast<OrtRunOptions*>(*runOptionsOpt)
+        : nullptr;
+    Ortpy::Status status = GetApi()->RunWithBinding(_ptr, runOptions, binding);
+    status.Check();
+}
+
+std::unordered_map<std::string, Ortpy::MemoryInfo> Ortpy::Session::GetMemoryInfoForInputs() const
+{
+    size_t inputCount = 0;
+    Ortpy::Status status = GetApi()->SessionGetInputCount(_ptr, &inputCount);
+    status.Check();
+    std::vector<const OrtMemoryInfo*> memInfos(inputCount, nullptr);
+    status = GetApi()->SessionGetMemoryInfoForInputs(_ptr, memInfos.data(), inputCount);
+    status.Check();
+    auto allocator = GetAllocator();
+    std::unordered_map<std::string, MemoryInfo> result;
+    for (size_t i = 0; i < inputCount; ++i)
+    {
+        char* nameRaw = nullptr;
+        status = GetApi()->SessionGetInputName(_ptr, i, allocator, &nameRaw);
+        status.Check();
+        std::string name{ nameRaw };
+        allocator->Free(allocator, nameRaw);
+        /** Create a copy of the borrowed MemoryInfo */
+        const char* miName = nullptr;
+        GetApi()->MemoryInfoGetName(memInfos[i], &miName);
+        OrtAllocatorType miAllocType;
+        GetApi()->MemoryInfoGetType(memInfos[i], &miAllocType);
+        int miId = 0;
+        GetApi()->MemoryInfoGetId(memInfos[i], &miId);
+        OrtMemType miMemType;
+        GetApi()->MemoryInfoGetMemType(memInfos[i], &miMemType);
+        result.emplace(name, MemoryInfo{ miName ? miName : "Cpu", miAllocType, miId, miMemType });
+    }
+    return result;
+}
+
+std::unordered_map<std::string, Ortpy::MemoryInfo> Ortpy::Session::GetMemoryInfoForOutputs() const
+{
+    size_t outputCount = 0;
+    Ortpy::Status status = GetApi()->SessionGetOutputCount(_ptr, &outputCount);
+    status.Check();
+    std::vector<const OrtMemoryInfo*> memInfos(outputCount, nullptr);
+    status = GetApi()->SessionGetMemoryInfoForOutputs(_ptr, memInfos.data(), outputCount);
+    status.Check();
+    auto allocator = GetAllocator();
+    std::unordered_map<std::string, MemoryInfo> result;
+    for (size_t i = 0; i < outputCount; ++i)
+    {
+        char* nameRaw = nullptr;
+        status = GetApi()->SessionGetOutputName(_ptr, i, allocator, &nameRaw);
+        status.Check();
+        std::string name{ nameRaw };
+        allocator->Free(allocator, nameRaw);
+        const char* miName = nullptr;
+        GetApi()->MemoryInfoGetName(memInfos[i], &miName);
+        OrtAllocatorType miAllocType;
+        GetApi()->MemoryInfoGetType(memInfos[i], &miAllocType);
+        int miId = 0;
+        GetApi()->MemoryInfoGetId(memInfos[i], &miId);
+        OrtMemType miMemType;
+        GetApi()->MemoryInfoGetMemType(memInfos[i], &miMemType);
+        result.emplace(name, MemoryInfo{ miName ? miName : "Cpu", miAllocType, miId, miMemType });
+    }
+    return result;
+}
+
+std::unordered_map<std::string, Ortpy::EpDevice> Ortpy::Session::GetEpDeviceForInputs() const
+{
+    size_t inputCount = 0;
+    Ortpy::Status status = GetApi()->SessionGetInputCount(_ptr, &inputCount);
+    status.Check();
+    std::vector<const OrtEpDevice*> epDevices(inputCount, nullptr);
+    status = GetApi()->SessionGetEpDeviceForInputs(_ptr, epDevices.data(), inputCount);
+    status.Check();
+    auto allocator = GetAllocator();
+    std::unordered_map<std::string, EpDevice> result;
+    for (size_t i = 0; i < inputCount; ++i)
+    {
+        if (epDevices[i] == nullptr) continue;
+        char* nameRaw = nullptr;
+        status = GetApi()->SessionGetInputName(_ptr, i, allocator, &nameRaw);
+        status.Check();
+        std::string name{ nameRaw };
+        allocator->Free(allocator, nameRaw);
+        result.emplace(name, EpDevice{ epDevices[i] });
+    }
+    return result;
+}
+
+#if ORT_API_VERSION >= 24
+std::unordered_map<std::string, Ortpy::EpDevice> Ortpy::Session::GetEpDeviceForOutputs() const
+{
+    size_t outputCount = 0;
+    Ortpy::Status status = GetApi()->SessionGetOutputCount(_ptr, &outputCount);
+    status.Check();
+    std::vector<const OrtEpDevice*> epDevices(outputCount, nullptr);
+    status = GetApi()->SessionGetEpDeviceForOutputs(_ptr, epDevices.data(), outputCount);
+    status.Check();
+    auto allocator = GetAllocator();
+    std::unordered_map<std::string, EpDevice> result;
+    for (size_t i = 0; i < outputCount; ++i)
+    {
+        if (epDevices[i] == nullptr) continue;
+        char* nameRaw = nullptr;
+        status = GetApi()->SessionGetOutputName(_ptr, i, allocator, &nameRaw);
+        status.Check();
+        std::string name{ nameRaw };
+        allocator->Free(allocator, nameRaw);
+        result.emplace(name, EpDevice{ epDevices[i] });
+    }
+    return result;
+}
+
+std::vector<Ortpy::EpAssignedSubgraph> Ortpy::Session::GetEpGraphAssignmentInfo() const
+{
+    const OrtEpAssignedSubgraph* const* subgraphsRaw = nullptr;
+    size_t numSubgraphs = 0;
+    Ortpy::Status status = GetApi()->Session_GetEpGraphAssignmentInfo(_ptr, &subgraphsRaw, &numSubgraphs);
+    status.Check();
+    std::vector<EpAssignedSubgraph> result;
+    result.reserve(numSubgraphs);
+    for (size_t i = 0; i < numSubgraphs; ++i)
+    {
+        EpAssignedSubgraph subgraph;
+        const char* epName = nullptr;
+        status = GetApi()->EpAssignedSubgraph_GetEpName(subgraphsRaw[i], &epName);
+        status.Check();
+        subgraph.epName = epName ? epName : "";
+        const OrtEpAssignedNode* const* nodesRaw = nullptr;
+        size_t numNodes = 0;
+        status = GetApi()->EpAssignedSubgraph_GetNodes(subgraphsRaw[i], &nodesRaw, &numNodes);
+        status.Check();
+        subgraph.nodes.reserve(numNodes);
+        for (size_t j = 0; j < numNodes; ++j)
+        {
+            EpAssignedNode node;
+            const char* val = nullptr;
+            status = GetApi()->EpAssignedNode_GetName(nodesRaw[j], &val);
+            status.Check();
+            node.name = val ? val : "";
+            status = GetApi()->EpAssignedNode_GetDomain(nodesRaw[j], &val);
+            status.Check();
+            node.domain = val ? val : "";
+            status = GetApi()->EpAssignedNode_GetOperatorType(nodesRaw[j], &val);
+            status.Check();
+            node.operatorType = val ? val : "";
+            subgraph.nodes.push_back(std::move(node));
+        }
+        result.push_back(std::move(subgraph));
+    }
+    return result;
+}
+#endif /** ORT_API_VERSION >= 24 */
+
+/** LoraAdapter */
+
+void Ortpy::LoraAdapter::ReleaseOrtType(OrtLoraAdapter* ptr)
+{
+    GetApi()->ReleaseLoraAdapter(ptr);
+}
+
+Ortpy::LoraAdapter::LoraAdapter(const std::string& adapterFilePath)
+    : OrtTypeWrapper<OrtLoraAdapter, LoraAdapter>(nullptr)
+{
+    Ortpy::Status status = GetApi()->CreateLoraAdapter(
+        StringToOrtString(adapterFilePath).c_str(), nullptr, &_ptr);
+    status.Check();
+}
+
+Ortpy::LoraAdapter::LoraAdapter(const nanobind::bytes& adapterBytes)
+    : OrtTypeWrapper<OrtLoraAdapter, LoraAdapter>(nullptr)
+{
+    Ortpy::Status status = GetApi()->CreateLoraAdapterFromArray(
+        adapterBytes.data(), adapterBytes.size(), nullptr, &_ptr);
+    status.Check();
 }
