@@ -139,6 +139,8 @@ namespace Ortpy
     {
     public:
         static void ReleaseOrtType(OrtModelCompilationOptions* ptr);
+        static int TpTraverse(PyObject* self, visitproc visit, void* arg) noexcept;
+        static int TpClear(PyObject* self) noexcept;
         using OrtTypeWrapper::OrtTypeWrapper;
         void SetInputModelPath(const std::string& path);
         void SetInputModelFromBuffer(const nanobind::bytes& modelBytes);
@@ -151,6 +153,10 @@ namespace Ortpy
         void SetEpContextBinaryInformation(
             const std::string& outputDirectory, const std::string& modelName);
         void SetGraphOptimizationLevel(GraphOptimizationLevel level);
+        using WriteFunction = std::function<void(const nanobind::bytes& buffer)>;
+        void SetOutputModelWriteFunc(const WriteFunction& writeFunc);
+    private:
+        WriteFunction _writeFunc { nullptr };
     };
 
     class LibraryHandle : public OrtTypeWrapper<void, LibraryHandle>
@@ -159,6 +165,8 @@ namespace Ortpy
         static void ReleaseOrtType(void* ptr);
         using OrtTypeWrapper::OrtTypeWrapper;
     };
+
+    class Value;
 
     class SessionOptions : public OrtTypeWrapper<OrtSessionOptions, SessionOptions>
     {
@@ -196,6 +204,11 @@ namespace Ortpy
         std::unordered_map<std::string, std::string> GetSessionOptionsConfigEntries() const;
         void SetDeterministicCompute(bool value);
         void SetLoadCancellationFlag(bool cancel);
+        void AddInitializer(const std::string& name, const Value& value);
+        void AddExternalInitializers(
+            const std::unordered_map<std::string, Value>& initializers);
+        void AddExternalInitializersFromFilesInMemory(
+            const std::unordered_map<std::string, nanobind::bytes>& files);
         SessionOptions Clone() const;
         void AppendExecutionProvider(
             const std::string& providerName,
@@ -211,9 +224,17 @@ namespace Ortpy
                 const std::unordered_map<std::string, std::string>& runtimeMetadata,
                 size_t max_selected)>;
         void SetEpSelectionPolicyDelegate(const EpSelectionPolicyDelegate& delegate);
+        using LoggingFunction = std::function<
+            void(OrtLoggingLevel severity,
+                 const std::string& category,
+                 const std::string& logid,
+                 const std::string& codeLocation,
+                 const std::string& message)>;
+        void SetUserLoggingFunction(const LoggingFunction& loggingFunction);
         ModelCompilationOptions CreateModelCompilationOptions() const;
     private:
         EpSelectionPolicyDelegate _delegate { nullptr };
+        LoggingFunction _loggingFunction { nullptr };
     };
 
     class TypeInfo : public OrtTypeWrapper<OrtTypeInfo, TypeInfo>
@@ -306,6 +327,7 @@ namespace Ortpy
 
         std::unordered_map<std::string, TypeInfo> GetInputInfo() const;
         std::unordered_map<std::string, TypeInfo> GetOutputInfo() const;
+        std::unordered_map<std::string, TypeInfo> GetOverridableInitializerInfo() const;
         ModelMetadata GetModelMetadata() const;
         std::string EndProfiling() const;
         uint64_t GetProfilingStartTimeNs() const;

@@ -24,6 +24,12 @@ static PyType_Slot sessionOptionsSlots[] = {
     { 0, nullptr }
 };
 
+static PyType_Slot modelCompilationOptionsSlots[] = {
+    { Py_tp_traverse, (void*) &Ortpy::ModelCompilationOptions::TpTraverse },
+    { Py_tp_clear, (void*) &Ortpy::ModelCompilationOptions::TpClear },
+    { 0, nullptr }
+};
+
 NB_MODULE(_ortpy, m) {
     m.doc() = "onnxruntime binding build upon C API.";
     m.attr("__version__") = ORTPY_VERSION;
@@ -233,7 +239,8 @@ NB_MODULE(_ortpy, m) {
         .def("synchronize_inputs", &Ortpy::IoBinding::SynchronizeInputs)
         .def("synchronize_outputs", &Ortpy::IoBinding::SynchronizeOutputs);
 
-    nanobind::class_<Ortpy::ModelCompilationOptions>(m, "ModelCompilationOptions")
+    nanobind::class_<Ortpy::ModelCompilationOptions>(m, "ModelCompilationOptions",
+            nanobind::type_slots(modelCompilationOptionsSlots))
         .def("set_input_model_path",
             &Ortpy::ModelCompilationOptions::SetInputModelPath,
             nanobind::arg("path"))
@@ -260,7 +267,10 @@ NB_MODULE(_ortpy, m) {
             nanobind::arg("model_name"))
         .def("set_graph_optimization_level",
             &Ortpy::ModelCompilationOptions::SetGraphOptimizationLevel,
-            nanobind::arg("level"));
+            nanobind::arg("level"))
+        .def("set_output_model_write_func",
+            &Ortpy::ModelCompilationOptions::SetOutputModelWriteFunc,
+            nanobind::arg("write_func"));
 
     nanobind::class_<Ortpy::SessionOptions>(m, "SessionOptions", nanobind::type_slots(sessionOptionsSlots))
         .def(nanobind::init<>())
@@ -332,6 +342,17 @@ NB_MODULE(_ortpy, m) {
         .def("set_load_cancellation_flag",
             &Ortpy::SessionOptions::SetLoadCancellationFlag,
             nanobind::arg("cancel"))
+        .def("add_initializer",
+            &Ortpy::SessionOptions::AddInitializer,
+            nanobind::arg("name"),
+            nanobind::arg("value"),
+            nanobind::keep_alive<1, 3>())
+        .def("add_external_initializers",
+            &Ortpy::SessionOptions::AddExternalInitializers,
+            nanobind::arg("initializers"))
+        .def("add_external_initializers_from_files_in_memory",
+            &Ortpy::SessionOptions::AddExternalInitializersFromFilesInMemory,
+            nanobind::arg("files"))
         .def("clone", &Ortpy::SessionOptions::Clone)
         .def("append_execution_provider",
             &Ortpy::SessionOptions::AppendExecutionProvider,
@@ -347,6 +368,9 @@ NB_MODULE(_ortpy, m) {
         .def("set_ep_selection_policy_delegate",
             &Ortpy::SessionOptions::SetEpSelectionPolicyDelegate,
             nanobind::arg("delegate"))
+        .def("set_user_logging_function",
+            &Ortpy::SessionOptions::SetUserLoggingFunction,
+            nanobind::arg("logging_function"))
         .def("create_model_compilation_options", &Ortpy::SessionOptions::CreateModelCompilationOptions);
 
     nanobind::class_<Ortpy::ModelMetadata>(m, "ModelMetadata")
@@ -410,6 +434,7 @@ NB_MODULE(_ortpy, m) {
             nanobind::arg("options"))
         .def("get_input_info", &Ortpy::Session::GetInputInfo)
         .def("get_output_info", &Ortpy::Session::GetOutputInfo)
+        .def("get_overridable_initializer_info", &Ortpy::Session::GetOverridableInitializerInfo)
         .def("get_model_metadata", &Ortpy::Session::GetModelMetadata)
         .def("end_profiling", &Ortpy::Session::EndProfiling)
         .def("get_profiling_start_time_ns", &Ortpy::Session::GetProfilingStartTimeNs)

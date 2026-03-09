@@ -405,6 +405,43 @@ void Ortpy::ModelCompilationOptions::ReleaseOrtType(OrtModelCompilationOptions* 
     GetApi()->GetCompileApi()->ReleaseModelCompilationOptions(ptr);
 }
 
+int Ortpy::ModelCompilationOptions::TpTraverse(PyObject* self, visitproc visit, void* arg) noexcept
+{
+    try
+    {
+        #if PY_VERSION_HEX >= 0x03090000
+            Py_VISIT(Py_TYPE(self));
+        #endif /** PY_VERSION_HEX >= 0x03090000 */
+
+        if (!nanobind::inst_ready(self))
+        {
+            return 0;
+        }
+        ModelCompilationOptions* opts = nanobind::inst_ptr<ModelCompilationOptions>(self);
+        nanobind::handle writeFuncHandle = nanobind::find(opts->_writeFunc);
+        Py_VISIT(writeFuncHandle.ptr());
+        return 0;
+    }
+    catch(...)
+    {
+        return -1;
+    }
+}
+
+int Ortpy::ModelCompilationOptions::TpClear(PyObject* self) noexcept
+{
+    try
+    {
+        ModelCompilationOptions* opts = nanobind::inst_ptr<ModelCompilationOptions>(self);
+        opts->_writeFunc = nullptr;
+        return 0;
+    }
+    catch(...)
+    {
+        return -1;
+    }
+}
+
 void Ortpy::ModelCompilationOptions::SetInputModelPath(const std::string& path)
 {
     Ortpy::Status status = GetApi()->GetCompileApi()->ModelCompilationOptions_SetInputModelPath(
@@ -477,6 +514,43 @@ void Ortpy::ModelCompilationOptions::SetEpContextBinaryInformation(
 void Ortpy::ModelCompilationOptions::SetGraphOptimizationLevel(GraphOptimizationLevel level)
 {
     Ortpy::Status status = GetApi()->GetCompileApi()->ModelCompilationOptions_SetGraphOptimizationLevel(_ptr, level);
+    status.Check();
+}
+
+void Ortpy::ModelCompilationOptions::SetOutputModelWriteFunc(const WriteFunction& writeFunc)
+{
+    if (writeFunc == nullptr)
+    {
+        throw std::invalid_argument("write function cannot be null");
+    }
+    _writeFunc = writeFunc;
+    OrtWriteBufferFunc wrapper = [](
+        void* state,
+        const void* buffer,
+        size_t buffer_num_bytes
+    ) -> OrtStatus* {
+        try
+        {
+            auto* opts = static_cast<Ortpy::ModelCompilationOptions*>(state);
+            if (opts->_writeFunc)
+            {
+                nanobind::gil_scoped_acquire acquire;
+                nanobind::bytes data{ static_cast<const char*>(buffer), buffer_num_bytes };
+                opts->_writeFunc(data);
+            }
+            return nullptr;
+        }
+        catch (const std::exception& ex)
+        {
+            return GetApi()->CreateStatus(ORT_FAIL, ex.what());
+        }
+        catch (...)
+        {
+            return GetApi()->CreateStatus(ORT_FAIL, "Unknown error in write callback");
+        }
+    };
+    Ortpy::Status status = GetApi()->GetCompileApi()->ModelCompilationOptions_SetOutputModelWriteFunc(
+        _ptr, wrapper, this);
     status.Check();
 }
 
@@ -631,8 +705,10 @@ int Ortpy::SessionOptions::TpTraverse(PyObject* self, visitproc visit, void* arg
             return 0;
         }
         SessionOptions* options = nanobind::inst_ptr<SessionOptions>(self);
-        nanobind::handle handle = nanobind::find(options->_delegate);
-        Py_VISIT(handle.ptr());
+        nanobind::handle delegateHandle = nanobind::find(options->_delegate);
+        Py_VISIT(delegateHandle.ptr());
+        nanobind::handle loggingHandle = nanobind::find(options->_loggingFunction);
+        Py_VISIT(loggingHandle.ptr());
         return 0;
     }
     catch(...)
@@ -646,8 +722,9 @@ int Ortpy::SessionOptions::TpClear(PyObject* self) noexcept
     try
     {
         SessionOptions* options = nanobind::inst_ptr<SessionOptions>(self);
-        /** Break circular reference */
+        /** Break circular references */
         options->_delegate = nullptr;
+        options->_loggingFunction = nullptr;
         return 0;
     }
     catch(...)
@@ -763,6 +840,44 @@ Ortpy::ModelCompilationOptions Ortpy::SessionOptions::CreateModelCompilationOpti
     return ModelCompilationOptions{ options };
 }
 
+void Ortpy::SessionOptions::SetUserLoggingFunction(const LoggingFunction& loggingFunction)
+{
+    if (loggingFunction == nullptr)
+    {
+        throw std::invalid_argument("logging function cannot be null");
+    }
+    _loggingFunction = loggingFunction;
+    OrtLoggingFunction wrapper = [](
+        void* param,
+        OrtLoggingLevel severity,
+        const char* category,
+        const char* logid,
+        const char* code_location,
+        const char* message
+    ) {
+        try
+        {
+            auto* options = static_cast<Ortpy::SessionOptions*>(param);
+            auto& fn = options->_loggingFunction;
+            if (fn)
+            {
+                nanobind::gil_scoped_acquire acquire;
+                fn(severity,
+                   category ? category : "",
+                   logid ? logid : "",
+                   code_location ? code_location : "",
+                   message ? message : "");
+            }
+        }
+        catch (...)
+        {
+            /** Cannot propagate through C void callback. Suppress. */
+        }
+    };
+    Ortpy::Status status = GetApi()->SetUserLoggingFunction(_ptr, wrapper, this);
+    status.Check();
+}
+
 void Ortpy::SessionOptions::RegisterCustomOpsLibrary_V2(const std::string& libraryName)
 {
     Ortpy::Status status = GetApi()->RegisterCustomOpsLibrary_V2(
@@ -854,6 +969,53 @@ void Ortpy::SessionOptions::SetDeterministicCompute(bool value)
 void Ortpy::SessionOptions::SetLoadCancellationFlag(bool cancel)
 {
     Ortpy::Status status = GetApi()->SessionOptionsSetLoadCancellationFlag(_ptr, cancel);
+    status.Check();
+}
+
+void Ortpy::SessionOptions::AddInitializer(const std::string& name, const Value& value)
+{
+    Ortpy::Status status = GetApi()->AddInitializer(
+        _ptr, name.c_str(), static_cast<OrtValue*>(value));
+    status.Check();
+}
+
+void Ortpy::SessionOptions::AddExternalInitializers(
+    const std::unordered_map<std::string, Value>& initializers)
+{
+    std::vector<const char*> names;
+    std::vector<const OrtValue*> values;
+    names.reserve(initializers.size());
+    values.reserve(initializers.size());
+    for (const auto& [name, value] : initializers)
+    {
+        names.push_back(name.c_str());
+        values.push_back(static_cast<OrtValue*>(value));
+    }
+    Ortpy::Status status = GetApi()->AddExternalInitializers(
+        _ptr, names.data(), values.data(), names.size());
+    status.Check();
+}
+
+void Ortpy::SessionOptions::AddExternalInitializersFromFilesInMemory(
+    const std::unordered_map<std::string, nanobind::bytes>& files)
+{
+    std::vector<std::basic_string<ORTCHAR_T>> ortNames;
+    std::vector<const ORTCHAR_T*> namesPtrs;
+    std::vector<char*> buffers;
+    std::vector<size_t> lengths;
+    ortNames.reserve(files.size());
+    namesPtrs.reserve(files.size());
+    buffers.reserve(files.size());
+    lengths.reserve(files.size());
+    for (const auto& [name, data] : files)
+    {
+        ortNames.push_back(StringToOrtString(name));
+        namesPtrs.push_back(ortNames.back().c_str());
+        buffers.push_back(const_cast<char*>(data.c_str()));
+        lengths.push_back(data.size());
+    }
+    Ortpy::Status status = GetApi()->AddExternalInitializersFromFilesInMemory(
+        _ptr, namesPtrs.data(), buffers.data(), lengths.data(), files.size());
     status.Check();
 }
 
@@ -1306,6 +1468,29 @@ std::unordered_map<std::string, Ortpy::TypeInfo> Ortpy::Session::GetOutputInfo()
         outputInfo.emplace(name, TypeInfo{ typeInfoRaw });
     }
     return outputInfo;
+}
+
+std::unordered_map<std::string, Ortpy::TypeInfo> Ortpy::Session::GetOverridableInitializerInfo() const
+{
+    size_t count = 0;
+    Ortpy::Status status = GetApi()->SessionGetOverridableInitializerCount(_ptr, &count);
+    status.Check();
+    std::unordered_map<std::string, TypeInfo> result;
+    auto allocator = GetAllocator();
+    for (size_t i = 0; i < count; i++)
+    {
+        char* nameRaw = nullptr;
+        status = GetApi()->SessionGetOverridableInitializerName(_ptr, i, allocator, &nameRaw);
+        status.Check();
+        std::string name{ nameRaw };
+        allocator->Free(allocator, nameRaw);
+
+        OrtTypeInfo* typeInfoRaw = nullptr;
+        status = GetApi()->SessionGetOverridableInitializerTypeInfo(_ptr, i, &typeInfoRaw);
+        status.Check();
+        result.emplace(name, TypeInfo{ typeInfoRaw });
+    }
+    return result;
 }
 
 Ortpy::ModelMetadata Ortpy::Session::GetModelMetadata() const
