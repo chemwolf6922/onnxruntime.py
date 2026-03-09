@@ -16,7 +16,7 @@
 
 #ifndef ORTPY_VERSION
 #define ORTPY_VERSION "0.0"
-#endif
+#endif /** ORTPY_VERSION */
 
 static PyType_Slot sessionOptionsSlots[] = {
     { Py_tp_traverse, (void*) &Ortpy::SessionOptions::TpTraverse },
@@ -75,6 +75,25 @@ NB_MODULE(_ortpy, m) {
         .value("CPU_OUTPUT", OrtMemTypeCPUOutput)
         .value("DEFAULT", OrtMemTypeDefault);
 
+    nanobind::enum_<OrtDeviceMemoryType>(m, "DeviceMemoryType")
+        .value("DEFAULT", OrtDeviceMemoryType_DEFAULT)
+        .value("HOST_ACCESSIBLE", OrtDeviceMemoryType_HOST_ACCESSIBLE);
+
+    nanobind::enum_<OrtCompiledModelCompatibility>(m, "CompiledModelCompatibility")
+        .value("EP_NOT_APPLICABLE", OrtCompiledModelCompatibility_EP_NOT_APPLICABLE)
+        .value("EP_SUPPORTED_OPTIMAL", OrtCompiledModelCompatibility_EP_SUPPORTED_OPTIMAL)
+        .value("EP_SUPPORTED_PREFER_RECOMPILATION", OrtCompiledModelCompatibility_EP_SUPPORTED_PREFER_RECOMPILATION)
+        .value("EP_UNSUPPORTED", OrtCompiledModelCompatibility_EP_UNSUPPORTED);
+
+    nanobind::enum_<ONNXType>(m, "ONNXType")
+        .value("UNKNOWN", ONNX_TYPE_UNKNOWN)
+        .value("TENSOR", ONNX_TYPE_TENSOR)
+        .value("SEQUENCE", ONNX_TYPE_SEQUENCE)
+        .value("MAP", ONNX_TYPE_MAP)
+        .value("OPAQUE", ONNX_TYPE_OPAQUE)
+        .value("SPARSETENSOR", ONNX_TYPE_SPARSETENSOR)
+        .value("OPTIONAL", ONNX_TYPE_OPTIONAL);
+
     nanobind::enum_<OrtMemoryInfoDeviceType>(m, "MemoryInfoDeviceType")
         .value("CPU", OrtMemoryInfoDeviceType_CPU)
         .value("GPU", OrtMemoryInfoDeviceType_GPU)
@@ -93,7 +112,10 @@ NB_MODULE(_ortpy, m) {
         .def_ro("ep_vendor", &Ortpy::EpDevice::epVendor)
         .def_ro("ep_metadata", &Ortpy::EpDevice::epMetadata)
         .def_ro("ep_options", &Ortpy::EpDevice::epOptions)
-        .def_ro("device", &Ortpy::EpDevice::device);
+        .def_ro("device", &Ortpy::EpDevice::device)
+        .def("get_memory_info",
+            &Ortpy::EpDevice::GetMemoryInfo,
+            nanobind::arg("memory_type"));
 
 #if ORT_API_VERSION >= 24
     nanobind::class_<Ortpy::EpAssignedNode>(m, "EpAssignedNode")
@@ -104,23 +126,56 @@ NB_MODULE(_ortpy, m) {
     nanobind::class_<Ortpy::EpAssignedSubgraph>(m, "EpAssignedSubgraph")
         .def_ro("ep_name", &Ortpy::EpAssignedSubgraph::epName)
         .def_ro("nodes", &Ortpy::EpAssignedSubgraph::nodes);
-#endif
+#endif /** ORT_API_VERSION >= 24 */
 
-    m.def("register_execution_provider_library", [](const std::string& name, const std::string& path) -> void {
+    m.def("register_execution_provider_library", [](const std::string& name, const std::string& path) {
         Ortpy::Env::GetSingleton()->RegisterExecutionProviderLibrary(name, path);
-    });
+    }, nanobind::arg("name"), nanobind::arg("path"));
 
-    m.def("unregister_execution_provider_library", [](const std::string& name) -> void {
+    m.def("unregister_execution_provider_library", [](const std::string& name) {
         Ortpy::Env::GetSingleton()->UnregisterExecutionProviderLibrary(name);
-    });
+    }, nanobind::arg("name"));
 
-    m.def("get_ep_devices", []() -> std::vector<Ortpy::EpDevice> {
+    m.def("get_ep_devices", []() {
         return Ortpy::Env::GetSingleton()->GetEpDevices();
     });
 
-    m.def("set_log_level", [](OrtLoggingLevel level) -> void {
+    m.def("get_available_providers", &Ortpy::GetAvailableProviders);
+
+    m.def("get_model_compatibility_for_ep_devices",
+        &Ortpy::GetModelCompatibilityForEpDevices,
+        nanobind::arg("ep_devices"),
+        nanobind::arg("compatibility_info"));
+
+    m.def("set_log_level", [](OrtLoggingLevel level) {
         Ortpy::Env::GetSingleton()->UpdateLogLevel(level);
     }, nanobind::arg("level"));
+
+#if ORT_API_VERSION >= 24
+    m.def("get_hardware_devices", []() {
+        return Ortpy::Env::GetSingleton()->GetHardwareDevices();
+    });
+
+    nanobind::class_<Ortpy::Env::DeviceEpIncompatibilityInfo>(m, "DeviceEpIncompatibilityInfo")
+        .def_ro("reasons_bitmask", &Ortpy::Env::DeviceEpIncompatibilityInfo::reasonsBitmask)
+        .def_ro("notes", &Ortpy::Env::DeviceEpIncompatibilityInfo::notes)
+        .def_ro("error_code", &Ortpy::Env::DeviceEpIncompatibilityInfo::errorCode);
+
+    m.def("get_hardware_device_ep_incompatibility_details",
+        [](const std::string& epName, const Ortpy::HardwareDevice& device) {
+            return Ortpy::Env::GetSingleton()->GetHardwareDeviceEpIncompatibilityDetails(epName, device);
+        }, nanobind::arg("ep_name"), nanobind::arg("device"));
+
+    m.def("get_compatibility_info_from_model",
+        [](const std::string& modelPath, const std::string& epType) {
+            return Ortpy::Env::GetSingleton()->GetCompatibilityInfoFromModel(modelPath, epType);
+        }, nanobind::arg("model_path"), nanobind::arg("ep_type"));
+
+    m.def("get_compatibility_info_from_model_bytes",
+        [](const nanobind::bytes& modelData, const std::string& epType) {
+            return Ortpy::Env::GetSingleton()->GetCompatibilityInfoFromModelBytes(modelData, epType);
+        }, nanobind::arg("model_data"), nanobind::arg("ep_type"));
+#endif /** ORT_API_VERSION >= 24 */
 
     nanobind::class_<Ortpy::Value>(m, "Value")
         .def(nanobind::init<const Ortpy::NpArray&>(),
@@ -183,7 +238,17 @@ NB_MODULE(_ortpy, m) {
         .def("compile_model_to_file",
             &Ortpy::ModelCompilationOptions::CompileModelToFile,
             nanobind::arg("path"))
-        .def("compile_model_to_buffer", &Ortpy::ModelCompilationOptions::CompileModelToBuffer);
+        .def("compile_model_to_buffer", &Ortpy::ModelCompilationOptions::CompileModelToBuffer)
+        .def("set_flags",
+            &Ortpy::ModelCompilationOptions::SetFlags,
+            nanobind::arg("flags"))
+        .def("set_ep_context_binary_information",
+            &Ortpy::ModelCompilationOptions::SetEpContextBinaryInformation,
+            nanobind::arg("output_directory"),
+            nanobind::arg("model_name"))
+        .def("set_graph_optimization_level",
+            &Ortpy::ModelCompilationOptions::SetGraphOptimizationLevel,
+            nanobind::arg("level"));
 
     nanobind::class_<Ortpy::SessionOptions>(m, "SessionOptions", nanobind::type_slots(sessionOptionsSlots))
         .def(nanobind::init<>())
@@ -222,6 +287,44 @@ NB_MODULE(_ortpy, m) {
         .def("register_custom_ops_library",
             &Ortpy::SessionOptions::RegisterCustomOpsLibrary,
             nanobind::arg("library_path"))
+        .def("register_custom_ops_library_v2",
+            &Ortpy::SessionOptions::RegisterCustomOpsLibrary_V2,
+            nanobind::arg("library_name"))
+        .def("register_custom_ops_using_function",
+            &Ortpy::SessionOptions::RegisterCustomOpsUsingFunction,
+            nanobind::arg("registration_func_name"))
+        .def("enable_ort_custom_ops", &Ortpy::SessionOptions::EnableOrtCustomOps)
+        .def("add_free_dimension_override",
+            &Ortpy::SessionOptions::AddFreeDimensionOverride,
+            nanobind::arg("dim_denotation"),
+            nanobind::arg("dim_value"))
+        .def("add_free_dimension_override_by_name",
+            &Ortpy::SessionOptions::AddFreeDimensionOverrideByName,
+            nanobind::arg("dim_name"),
+            nanobind::arg("dim_value"))
+        .def("disable_per_session_threads", &Ortpy::SessionOptions::DisablePerSessionThreads)
+        .def("add_session_config_entry",
+            &Ortpy::SessionOptions::AddSessionConfigEntry,
+            nanobind::arg("config_key"),
+            nanobind::arg("config_value"))
+        .def("has_session_config_entry",
+            &Ortpy::SessionOptions::HasSessionConfigEntry,
+            nanobind::arg("config_key"))
+        .def("get_session_config_entry",
+            &Ortpy::SessionOptions::GetSessionConfigEntry,
+            nanobind::arg("config_key"))
+        .def("get_session_config_entries", &Ortpy::SessionOptions::GetSessionOptionsConfigEntries)
+        .def("set_deterministic_compute",
+            &Ortpy::SessionOptions::SetDeterministicCompute,
+            nanobind::arg("value"))
+        .def("set_load_cancellation_flag",
+            &Ortpy::SessionOptions::SetLoadCancellationFlag,
+            nanobind::arg("cancel"))
+        .def("clone", &Ortpy::SessionOptions::Clone)
+        .def("append_execution_provider",
+            &Ortpy::SessionOptions::AppendExecutionProvider,
+            nanobind::arg("provider_name"),
+            nanobind::arg("provider_options"))
         .def("append_execution_provider_v2",
             &Ortpy::SessionOptions::AppendExecutionProvider_V2,
             nanobind::arg("ep_devices"),
@@ -250,7 +353,7 @@ NB_MODULE(_ortpy, m) {
         .def_ro("shape", &Ortpy::TensorInfo::shape)
         .def_ro("dimensions", &Ortpy::TensorInfo::dimensions)
         .def_prop_ro("dtype",
-            [](const Ortpy::TensorInfo &self) -> std::string {
+            [](const Ortpy::TensorInfo& self) -> std::string {
                 return Ortpy::Value::NpTypeToName(self.dtype);
             });
 
@@ -266,7 +369,17 @@ NB_MODULE(_ortpy, m) {
             &Ortpy::RunOptions::GetRunTag,
             &Ortpy::RunOptions::SetRunTag)
         .def("set_terminate", &Ortpy::RunOptions::SetTerminate)
-        .def("unset_terminate", &Ortpy::RunOptions::UnsetTerminate);
+        .def("unset_terminate", &Ortpy::RunOptions::UnsetTerminate)
+        .def("add_run_config_entry",
+            &Ortpy::RunOptions::AddRunConfigEntry,
+            nanobind::arg("config_key"),
+            nanobind::arg("config_value"))
+        .def("get_run_config_entry",
+            &Ortpy::RunOptions::GetRunConfigEntry,
+            nanobind::arg("config_key"))
+        .def("add_active_lora_adapter",
+            &Ortpy::RunOptions::AddActiveLoraAdapter,
+            nanobind::arg("adapter"));
 
     nanobind::class_<Ortpy::Session>(m, "Session")
         .def(nanobind::init<const std::string&, const Ortpy::SessionOptions&>(),
@@ -286,7 +399,7 @@ NB_MODULE(_ortpy, m) {
 #if ORT_API_VERSION >= 24
         .def("get_ep_device_for_outputs", &Ortpy::Session::GetEpDeviceForOutputs)
         .def("get_ep_graph_assignment_info", &Ortpy::Session::GetEpGraphAssignmentInfo)
-#endif
+#endif /** ORT_API_VERSION >= 24 */
         .def("create_io_binding", &Ortpy::Session::CreateIoBinding,
             nanobind::keep_alive<0, 1>())
         .def("run_with_binding",
@@ -298,4 +411,10 @@ NB_MODULE(_ortpy, m) {
             nanobind::arg("inputs"),
             nanobind::arg("output_names") = std::nullopt,
             nanobind::arg("run_options") = std::nullopt);
+
+    nanobind::class_<Ortpy::LoraAdapter>(m, "LoraAdapter")
+        .def(nanobind::init<const std::string&>(),
+            nanobind::arg("adapter_file_path"))
+        .def(nanobind::init<const nanobind::bytes&>(),
+            nanobind::arg("adapter_bytes"));
 }

@@ -16,6 +16,7 @@ namespace Ortpy
     const OrtApi* GetApi();
     OrtAllocator* GetAllocator();
     std::unordered_map<std::string, std::string> KeyValuePairsToMap(const OrtKeyValuePairs* pairs);
+    std::vector<std::string> GetAvailableProviders();
 
     template <typename T, typename Derived>
     class OrtTypeWrapper
@@ -82,6 +83,8 @@ namespace Ortpy
         HardwareDevice() = default;
     };
 
+    class MemoryInfo;
+
     struct EpDevice
     {
         std::string epName;
@@ -92,9 +95,14 @@ namespace Ortpy
         EpDevice(const OrtEpDevice* epDevice);
         EpDevice() = default;
         operator const OrtEpDevice*() const;
+        /** Declared after MemoryInfo is complete. Implemented in Ortpy.cpp. */
+        std::optional<MemoryInfo> GetMemoryInfo(OrtDeviceMemoryType memoryType) const;
     private:
         const OrtEpDevice* _ptr{ nullptr };
     };
+
+    OrtCompiledModelCompatibility GetModelCompatibilityForEpDevices(
+        const std::vector<EpDevice>& epDevices, const std::string& compatibilityInfo);
 
     class Env : public OrtTypeWrapper<OrtEnv, Env>
     {
@@ -106,6 +114,22 @@ namespace Ortpy
         void UnregisterExecutionProviderLibrary(const std::string& name);
         std::vector<EpDevice> GetEpDevices() const;
         void UpdateLogLevel(OrtLoggingLevel level);
+#if ORT_API_VERSION >= 24
+        std::vector<HardwareDevice> GetHardwareDevices() const;
+
+        struct DeviceEpIncompatibilityInfo
+        {
+            uint32_t reasonsBitmask;
+            std::string notes;
+            int32_t errorCode;
+        };
+        DeviceEpIncompatibilityInfo GetHardwareDeviceEpIncompatibilityDetails(
+            const std::string& epName, const HardwareDevice& device) const;
+        std::optional<std::string> GetCompatibilityInfoFromModel(
+            const std::string& modelPath, const std::string& epType) const;
+        std::optional<std::string> GetCompatibilityInfoFromModelBytes(
+            const nanobind::bytes& modelData, const std::string& epType) const;
+#endif /** ORT_API_VERSION >= 24 */
     private:
         static std::shared_ptr<Env> _instance;
         Env();
@@ -123,6 +147,10 @@ namespace Ortpy
         void SetEpContextEmbedMode(bool embedContext);
         void CompileModelToFile(const std::string& path);
         nanobind::bytes CompileModelToBuffer();
+        void SetFlags(uint32_t flags);
+        void SetEpContextBinaryInformation(
+            const std::string& outputDirectory, const std::string& modelName);
+        void SetGraphOptimizationLevel(GraphOptimizationLevel level);
     };
 
     class LibraryHandle : public OrtTypeWrapper<void, LibraryHandle>
@@ -156,6 +184,22 @@ namespace Ortpy
         void SetIntraOpNumThreads(int intraOpNumThreads);
         void SetInterOpNumThreads(int interOpNumThreads);
         LibraryHandle RegisterCustomOpsLibrary(const std::string& libraryPath);
+        void RegisterCustomOpsLibrary_V2(const std::string& libraryName);
+        void RegisterCustomOpsUsingFunction(const std::string& registrationFuncName);
+        void EnableOrtCustomOps();
+        void AddFreeDimensionOverride(const std::string& dimDenotation, int64_t dimValue);
+        void AddFreeDimensionOverrideByName(const std::string& dimName, int64_t dimValue);
+        void DisablePerSessionThreads();
+        void AddSessionConfigEntry(const std::string& configKey, const std::string& configValue);
+        bool HasSessionConfigEntry(const std::string& configKey) const;
+        std::string GetSessionConfigEntry(const std::string& configKey) const;
+        std::unordered_map<std::string, std::string> GetSessionOptionsConfigEntries() const;
+        void SetDeterministicCompute(bool value);
+        void SetLoadCancellationFlag(bool cancel);
+        SessionOptions Clone() const;
+        void AppendExecutionProvider(
+            const std::string& providerName,
+            const std::unordered_map<std::string, std::string>& providerOptions);
         void AppendExecutionProvider_V2(
             const std::vector<EpDevice>& epDevices,
             const std::unordered_map<std::string, std::string>& epOptions);
@@ -177,6 +221,8 @@ namespace Ortpy
     public:
         static void ReleaseOrtType(OrtTypeInfo* ptr);
         using OrtTypeWrapper::OrtTypeWrapper;
+        ONNXType GetOnnxType() const;
+        std::string GetDenotation() const;
     };
 
     class TensorTypeAndShapeInfo : public OrtTypeWrapper<OrtTensorTypeAndShapeInfo, TensorTypeAndShapeInfo>
@@ -184,6 +230,7 @@ namespace Ortpy
     public:
         static void ReleaseOrtType(OrtTensorTypeAndShapeInfo* ptr);
         using OrtTypeWrapper::OrtTypeWrapper;
+        size_t GetElementCount() const;
     };
 
     struct TensorInfo
@@ -211,6 +258,8 @@ namespace Ortpy
         std::optional<std::string> LookupCustomMetadata(const std::string& key) const;
     };
 
+    class LoraAdapter;
+
     class RunOptions : public OrtTypeWrapper<OrtRunOptions, RunOptions>
     {
     public:
@@ -224,11 +273,14 @@ namespace Ortpy
         std::string GetRunTag() const;
         void SetTerminate();
         void UnsetTerminate();
+        void AddRunConfigEntry(const std::string& configKey, const std::string& configValue);
+        std::optional<std::string> GetRunConfigEntry(const std::string& configKey) const;
+        void AddActiveLoraAdapter(const LoraAdapter& adapter);
     };
 
     class Value;
-    class MemoryInfo;
     class IoBinding;
+    class LoraAdapter;
 
 #if ORT_API_VERSION >= 24
     struct EpAssignedNode
@@ -243,7 +295,7 @@ namespace Ortpy
         std::string epName;
         std::vector<EpAssignedNode> nodes;
     };
-#endif
+#endif /** ORT_API_VERSION >= 24 */
 
     class Session : public OrtTypeWrapper<OrtSession, Session>
     {
@@ -263,7 +315,7 @@ namespace Ortpy
 #if ORT_API_VERSION >= 24
         std::unordered_map<std::string, EpDevice> GetEpDeviceForOutputs() const;
         std::vector<EpAssignedSubgraph> GetEpGraphAssignmentInfo() const;
-#endif
+#endif /** ORT_API_VERSION >= 24 */
         IoBinding CreateIoBinding() const;
         void RunWithBinding(
             IoBinding& binding,
@@ -347,4 +399,13 @@ namespace Ortpy
         std::vector<Value> _boundInputValues;
         std::vector<Value> _boundOutputValues;
     };
+
+    class LoraAdapter : public OrtTypeWrapper<OrtLoraAdapter, LoraAdapter>
+    {
+    public:
+        static void ReleaseOrtType(OrtLoraAdapter* ptr);
+        LoraAdapter(const std::string& adapterFilePath);
+        LoraAdapter(const nanobind::bytes& adapterBytes);
+    };
+
 }
