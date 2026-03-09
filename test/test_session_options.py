@@ -163,11 +163,12 @@ class TestSessionOptionsAddInitializer:
 
 class TestSessionOptionsEpGeneric:
     def test_append_execution_provider_v2(self, add_model_path):
-        """Use EP device list (V2 API) which always includes CPU."""
+        """Use EP device list (V2 API) filtered to a single EP."""
         opts = ort.SessionOptions()
-        devices = ort.get_ep_devices()
-        assert len(devices) >= 1
-        opts.append_execution_provider_v2(devices, {})
+        all_devices = ort.get_ep_devices()
+        assert len(all_devices) >= 1
+        # Use only the first device (not all devices from the same EP are compatible)
+        opts.append_execution_provider_v2([all_devices[0]], {})
         session = ort.Session(str(add_model_path), opts)
         assert session is not None
 
