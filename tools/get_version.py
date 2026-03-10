@@ -6,6 +6,8 @@ _PROJECT_PATH = Path(__file__).parent.resolve().parent
 repo = git.Repo(_PROJECT_PATH)
 
 def _get_tag() -> str | None:
+    if repo.is_dirty():
+        return None
     head = repo.head.commit
     matching_tags = [tag for tag in repo.tags if tag.commit == head]
     if not matching_tags:

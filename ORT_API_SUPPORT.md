@@ -7,6 +7,7 @@ to whether it is supported in the `ortpy` binding, following the declaration ord
 Legend:
 - ✅ Supported — the API is exposed (directly or indirectly) in the Python binding.
 - ❌ Not supported — the API is not currently exposed.
+- ➖ Out of scope — the API is intentionally not exposed and there are no plans to support it.
 
 ---
 
@@ -18,9 +19,9 @@ Legend:
 | ✅ | GetErrorCode | `Status.GetErrorCode()` (internal) |
 | ✅ | GetErrorMessage | `Status.GetErrorMessage()` (internal) |
 | ✅ | CreateEnv | `Env` singleton (auto-created) |
-| ❌ | CreateEnvWithCustomLogger | Custom OrtLoggingFunction callback not exposed |
-| ❌ | EnableTelemetryEvents | Not exposed |
-| ❌ | DisableTelemetryEvents | Not exposed |
+| ✅ | CreateEnvWithCustomLogger | `ortpy.create_env(logging_function=...)` |
+| ➖ | EnableTelemetryEvents | Telemetry is always disabled |
+| ➖ | DisableTelemetryEvents | Telemetry is always disabled |
 | ✅ | CreateSession | `Session(model_path, options)` |
 | ✅ | CreateSessionFromArray | `Session(model_bytes, options)` |
 | ✅ | Run | `Session.run()` / `Session.run_with_ort_values()` |
@@ -40,9 +41,9 @@ Legend:
 | ✅ | SetSessionGraphOptimizationLevel | `SessionOptions.set_session_graph_optimization_level()` |
 | ✅ | SetIntraOpNumThreads | `SessionOptions.set_intra_op_num_threads()` |
 | ✅ | SetInterOpNumThreads | `SessionOptions.set_inter_op_num_threads()` |
-| ❌ | CreateCustomOpDomain | Custom op implementation not in scope |
-| ❌ | CustomOpDomain_Add | Custom op implementation not in scope |
-| ❌ | AddCustomOpDomain | Custom op implementation not in scope |
+| ➖ | CreateCustomOpDomain | Custom op implementation not in scope |
+| ➖ | CustomOpDomain_Add | Custom op implementation not in scope |
+| ➖ | AddCustomOpDomain | Custom op implementation not in scope |
 | ✅ | RegisterCustomOpsLibrary | `SessionOptions.register_custom_ops_library()` |
 | ✅ | SessionGetInputCount | Used internally by `Session.get_input_info()` |
 | ✅ | SessionGetOutputCount | Used internally by `Session.get_output_info()` |
@@ -71,9 +72,9 @@ Legend:
 | ✅ | GetStringTensorContent | Used internally by `Value.get_strings()` |
 | ✅ | CastTypeInfoToTensorInfo | Used internally by `TypeInfo` tensor accessors |
 | ✅ | GetOnnxTypeFromTypeInfo | `TypeInfo.onnx_type` |
-| ❌ | CreateTensorTypeAndShapeInfo | Standalone creation not exposed |
-| ❌ | SetTensorElementType | Standalone creation not exposed |
-| ❌ | SetDimensions | Standalone creation not exposed |
+| ➖ | CreateTensorTypeAndShapeInfo | Standalone creation not exposed |
+| ➖ | SetTensorElementType | Standalone creation not exposed |
+| ➖ | SetDimensions | Standalone creation not exposed |
 | ✅ | GetTensorElementType | `TypeInfo.element_type` |
 | ✅ | GetDimensionsCount | Used internally by `TypeInfo.shape` |
 | ✅ | GetDimensions | `TypeInfo.shape` |
@@ -89,23 +90,23 @@ Legend:
 | ✅ | MemoryInfoGetId | `MemoryInfo.device_id` |
 | ✅ | MemoryInfoGetMemType | `MemoryInfo.mem_type` |
 | ✅ | MemoryInfoGetType | `MemoryInfo.allocator_type` |
-| ❌ | AllocatorAlloc | Allocator management not exposed |
-| ❌ | AllocatorFree | Allocator management not exposed |
-| ❌ | AllocatorGetInfo | Allocator management not exposed |
+| ➖ | AllocatorAlloc | Allocator management not in scope |
+| ➖ | AllocatorFree | Allocator management not in scope |
+| ➖ | AllocatorGetInfo | Allocator management not in scope |
 | ✅ | GetAllocatorWithDefaultOptions | Used internally (`GetAllocator()`) |
 | ✅ | AddFreeDimensionOverride | `SessionOptions.add_free_dimension_override()` |
 | ✅ | GetValue | `Value.__getitem__()` (map/sequence element access) |
 | ✅ | GetValueCount | `Value.__len__()` |
 | ✅ | CreateValue | Used internally for map/sequence construction |
-| ❌ | CreateOpaqueValue | Opaque type not exposed |
-| ❌ | GetOpaqueValue | Opaque type not exposed |
-| ❌ | KernelInfoGetAttribute_float | Custom op / kernel info not in scope |
-| ❌ | KernelInfoGetAttribute_int64 | Custom op / kernel info not in scope |
-| ❌ | KernelInfoGetAttribute_string | Custom op / kernel info not in scope |
-| ❌ | KernelContext_GetInputCount | Custom op / kernel context not in scope |
-| ❌ | KernelContext_GetOutputCount | Custom op / kernel context not in scope |
-| ❌ | KernelContext_GetInput | Custom op / kernel context not in scope |
-| ❌ | KernelContext_GetOutput | Custom op / kernel context not in scope |
+| ➖ | CreateOpaqueValue | Opaque type not exposed |
+| ➖ | GetOpaqueValue | Opaque type not exposed |
+| ➖ | KernelInfoGetAttribute_float | Custom op / kernel info not in scope |
+| ➖ | KernelInfoGetAttribute_int64 | Custom op / kernel info not in scope |
+| ➖ | KernelInfoGetAttribute_string | Custom op / kernel info not in scope |
+| ➖ | KernelContext_GetInputCount | Custom op / kernel context not in scope |
+| ➖ | KernelContext_GetOutputCount | Custom op / kernel context not in scope |
+| ➖ | KernelContext_GetInput | Custom op / kernel context not in scope |
+| ➖ | KernelContext_GetOutput | Custom op / kernel context not in scope |
 | ✅ | ReleaseEnv | `Env` destructor (via RAII) |
 | ✅ | ReleaseStatus | `Status` destructor (via RAII) |
 | ✅ | ReleaseMemoryInfo | `MemoryInfo` destructor (via RAII) |
@@ -115,7 +116,7 @@ Legend:
 | ✅ | ReleaseTypeInfo | `TypeInfo` destructor (via RAII) |
 | ✅ | ReleaseTensorTypeAndShapeInfo | Used internally (not owned; borrowed pointer) |
 | ✅ | ReleaseSessionOptions | `SessionOptions` destructor (via RAII) |
-| ❌ | ReleaseCustomOpDomain | Custom op implementation not in scope |
+| ➖ | ReleaseCustomOpDomain | Custom op implementation not in scope |
 | ✅ | GetDenotationFromTypeInfo | `TypeInfo.denotation` |
 | ✅ | CastTypeInfoToMapTypeInfo | Used internally by `TypeInfo.map_key_type` / `map_value_type` |
 | ✅ | CastTypeInfoToSequenceTypeInfo | Used internally by `TypeInfo.sequence_element_type` |
@@ -133,10 +134,10 @@ Legend:
 | ✅ | ModelMetadataLookupCustomMetadataMap | `ModelMetadata.lookup_custom_metadata()` |
 | ✅ | ModelMetadataGetVersion | `ModelMetadata.version` |
 | ✅ | ReleaseModelMetadata | `ModelMetadata` destructor (via RAII) |
-| ❌ | CreateEnvWithGlobalThreadPools | Global thread pool configuration not exposed |
+| ✅ | CreateEnvWithGlobalThreadPools | `ortpy.create_env(threading_options=...)` |
 | ✅ | DisablePerSessionThreads | `SessionOptions.disable_per_session_threads()` |
-| ❌ | CreateThreadingOptions | Threading options not exposed |
-| ❌ | ReleaseThreadingOptions | Threading options not exposed |
+| ✅ | CreateThreadingOptions | `ThreadingOptions()` |
+| ✅ | ReleaseThreadingOptions | `ThreadingOptions` destructor (via RAII) |
 | ✅ | ModelMetadataGetCustomMetadataMapKeys | Used internally by `ModelMetadata.custom_metadata_map` |
 | ✅ | AddFreeDimensionOverrideByName | `SessionOptions.add_free_dimension_override_by_name()` |
 | ✅ | GetAvailableProviders | `ortpy.get_available_providers()` |
@@ -145,8 +146,8 @@ Legend:
 | ✅ | GetStringTensorElement | Used internally by `Value.get_strings()` |
 | ✅ | FillStringTensorElement | Used internally by `Value.from_strings()` |
 | ✅ | AddSessionConfigEntry | `SessionOptions.add_session_config_entry()` |
-| ❌ | CreateAllocator | Allocator management not exposed |
-| ❌ | ReleaseAllocator | Allocator management not exposed |
+| ➖ | CreateAllocator | Allocator management not in scope |
+| ➖ | ReleaseAllocator | Allocator management not in scope |
 | ✅ | RunWithBinding | `Session.run_with_binding()` |
 | ✅ | CreateIoBinding | `Session.create_io_binding()` |
 | ✅ | ReleaseIoBinding | `IoBinding` destructor (via RAII) |
@@ -157,41 +158,41 @@ Legend:
 | ✅ | GetBoundOutputValues | Used internally by `IoBinding.get_outputs()` |
 | ✅ | ClearBoundInputs | `IoBinding.clear_inputs()` |
 | ✅ | ClearBoundOutputs | `IoBinding.clear_outputs()` |
-| ❌ | TensorAt | Low-level typed element access not exposed |
-| ❌ | CreateAndRegisterAllocator | Allocator management not exposed |
-| ❌ | SetLanguageProjection | Internal ORT mechanism |
+| ➖ | TensorAt | Low-level typed element access not exposed |
+| ➖ | CreateAndRegisterAllocator | Allocator management not in scope |
+| ➖ | SetLanguageProjection | Internal ORT mechanism |
 | ✅ | SessionGetProfilingStartTimeNs | `Session.get_profiling_start_time_ns()` |
-| ❌ | SetGlobalIntraOpNumThreads | Global thread pool configuration not exposed |
-| ❌ | SetGlobalInterOpNumThreads | Global thread pool configuration not exposed |
-| ❌ | SetGlobalSpinControl | Global thread pool configuration not exposed |
+| ✅ | SetGlobalIntraOpNumThreads | `ThreadingOptions.set_intra_op_num_threads()` |
+| ✅ | SetGlobalInterOpNumThreads | `ThreadingOptions.set_inter_op_num_threads()` |
+| ✅ | SetGlobalSpinControl | `ThreadingOptions.set_spin_control()` |
 | ✅ | AddInitializer | `SessionOptions.add_initializer()` |
-| ❌ | CreateEnvWithCustomLoggerAndGlobalThreadPools | Global thread pool configuration not exposed |
-| ❌ | SessionOptionsAppendExecutionProvider_CUDA | Legacy EP API; use `append_execution_provider()` |
-| ❌ | SessionOptionsAppendExecutionProvider_ROCM | Legacy EP API; use `append_execution_provider()` |
-| ❌ | SessionOptionsAppendExecutionProvider_OpenVINO | Legacy EP API; use `append_execution_provider()` |
-| ❌ | SetGlobalDenormalAsZero | Global thread pool configuration not exposed |
-| ❌ | CreateArenaCfg | Arena configuration not exposed |
-| ❌ | ReleaseArenaCfg | Arena configuration not exposed |
+| ✅ | CreateEnvWithCustomLoggerAndGlobalThreadPools | `ortpy.create_env(logging_function=..., threading_options=...)` |
+| ➖ | SessionOptionsAppendExecutionProvider_CUDA | Legacy EP API; use `append_execution_provider()` |
+| ➖ | SessionOptionsAppendExecutionProvider_ROCM | Legacy EP API; use `append_execution_provider()` |
+| ➖ | SessionOptionsAppendExecutionProvider_OpenVINO | Legacy EP API; use `append_execution_provider()` |
+| ✅ | SetGlobalDenormalAsZero | `ThreadingOptions.set_denormal_as_zero()` |
+| ➖ | CreateArenaCfg | Arena configuration not in scope |
+| ➖ | ReleaseArenaCfg | Arena configuration not in scope |
 | ✅ | ModelMetadataGetGraphDescription | `ModelMetadata.graph_description` |
-| ❌ | SessionOptionsAppendExecutionProvider_TensorRT | Legacy EP API; use `append_execution_provider()` |
+| ➖ | SessionOptionsAppendExecutionProvider_TensorRT | Legacy EP API; use `append_execution_provider()` |
 | ❌ | SetCurrentGpuDeviceId | GPU device management not exposed |
 | ❌ | GetCurrentGpuDeviceId | GPU device management not exposed |
-| ❌ | KernelInfoGetAttributeArray_float | Custom op / kernel info not in scope |
-| ❌ | KernelInfoGetAttributeArray_int64 | Custom op / kernel info not in scope |
-| ❌ | CreateArenaCfgV2 | Arena configuration not exposed |
+| ➖ | KernelInfoGetAttributeArray_float | Custom op / kernel info not in scope |
+| ➖ | KernelInfoGetAttributeArray_int64 | Custom op / kernel info not in scope |
+| ➖ | CreateArenaCfgV2 | Arena configuration not in scope |
 | ✅ | AddRunConfigEntry | `RunOptions.add_run_config_entry()` |
 | ❌ | CreatePrepackedWeightsContainer | Prepacked weights not exposed |
 | ❌ | ReleasePrepackedWeightsContainer | Prepacked weights not exposed |
 | ❌ | CreateSessionWithPrepackedWeightsContainer | Prepacked weights not exposed |
 | ❌ | CreateSessionFromArrayWithPrepackedWeightsContainer | Prepacked weights not exposed |
-| ❌ | SessionOptionsAppendExecutionProvider_TensorRT_V2 | Legacy EP API; use `append_execution_provider()` |
-| ❌ | CreateTensorRTProviderOptions | Legacy EP API; use `append_execution_provider()` |
-| ❌ | UpdateTensorRTProviderOptions | Legacy EP API; use `append_execution_provider()` |
-| ❌ | GetTensorRTProviderOptionsAsString | Legacy EP API; use `append_execution_provider()` |
-| ❌ | ReleaseTensorRTProviderOptions | Legacy EP API; use `append_execution_provider()` |
+| ➖ | SessionOptionsAppendExecutionProvider_TensorRT_V2 | Legacy EP API; use `append_execution_provider()` |
+| ➖ | CreateTensorRTProviderOptions | Legacy EP API; use `append_execution_provider()` |
+| ➖ | UpdateTensorRTProviderOptions | Legacy EP API; use `append_execution_provider()` |
+| ➖ | GetTensorRTProviderOptionsAsString | Legacy EP API; use `append_execution_provider()` |
+| ➖ | ReleaseTensorRTProviderOptions | Legacy EP API; use `append_execution_provider()` |
 | ✅ | EnableOrtCustomOps | `SessionOptions.enable_ort_custom_ops()` |
-| ❌ | RegisterAllocator | Allocator management not exposed |
-| ❌ | UnregisterAllocator | Allocator management not exposed |
+| ➖ | RegisterAllocator | Allocator management not in scope |
+| ➖ | UnregisterAllocator | Allocator management not in scope |
 | ❌ | IsSparseTensor | Sparse tensor not in scope |
 | ❌ | CreateSparseTensorAsOrtValue | Sparse tensor not in scope |
 | ❌ | FillSparseTensorCoo | Sparse tensor not in scope |
@@ -207,21 +208,21 @@ Legend:
 | ❌ | GetSparseTensorIndicesTypeShape | Sparse tensor not in scope |
 | ❌ | GetSparseTensorIndices | Sparse tensor not in scope |
 | ✅ | HasValue | `Value.has_value` |
-| ❌ | KernelContext_GetGPUComputeStream | Custom op / kernel context not in scope |
+| ➖ | KernelContext_GetGPUComputeStream | Custom op / kernel context not in scope |
 | ✅ | GetTensorMemoryInfo | `Value.get_tensor_memory_info()` |
-| ❌ | GetExecutionProviderApi | EP implementation not in scope |
-| ❌ | SessionOptionsSetCustomCreateThreadFn | Custom threading not exposed |
-| ❌ | SessionOptionsSetCustomThreadCreationOptions | Custom threading not exposed |
-| ❌ | SessionOptionsSetCustomJoinThreadFn | Custom threading not exposed |
-| ❌ | SetGlobalCustomCreateThreadFn | Custom threading not exposed |
-| ❌ | SetGlobalCustomThreadCreationOptions | Custom threading not exposed |
-| ❌ | SetGlobalCustomJoinThreadFn | Custom threading not exposed |
+| ➖ | GetExecutionProviderApi | EP implementation not in scope |
+| ➖ | SessionOptionsSetCustomCreateThreadFn | Custom threading not exposed |
+| ➖ | SessionOptionsSetCustomThreadCreationOptions | Custom threading not exposed |
+| ➖ | SessionOptionsSetCustomJoinThreadFn | Custom threading not exposed |
+| ➖ | SetGlobalCustomCreateThreadFn | Custom threading not exposed |
+| ➖ | SetGlobalCustomThreadCreationOptions | Custom threading not exposed |
+| ➖ | SetGlobalCustomJoinThreadFn | Custom threading not exposed |
 | ✅ | SynchronizeBoundInputs | `IoBinding.synchronize_inputs()` |
 | ✅ | SynchronizeBoundOutputs | `IoBinding.synchronize_outputs()` |
-| ❌ | KernelInfoGetAttribute_tensor | Custom op / kernel info not in scope |
+| ➖ | KernelInfoGetAttribute_tensor | Custom op / kernel info not in scope |
 | ❌ | GetResizedStringTensorElementBuffer | Low-level buffer management not exposed |
-| ❌ | CreateAndRegisterAllocatorV2 | Allocator management not exposed |
-| ❌ | RunAsync | Async execution not exposed |
+| ➖ | CreateAndRegisterAllocatorV2 | Allocator management not in scope |
+| ➖ | RunAsync | Async execution not exposed |
 | ✅ | ReleaseLoraAdapter | `LoraAdapter` destructor (via RAII) |
 | ❌ | ReleaseSyncStream | SyncStream not exposed |
 
@@ -229,12 +230,12 @@ Legend:
 
 | | API | Detail |
 |---|---|---|
-| ❌ | SessionOptionsAppendExecutionProvider_CUDA_V2 | Legacy EP API; use `append_execution_provider()` |
-| ❌ | CreateCUDAProviderOptions | Legacy EP API; use `append_execution_provider()` |
-| ❌ | UpdateCUDAProviderOptions | Legacy EP API; use `append_execution_provider()` |
-| ❌ | GetCUDAProviderOptionsAsString | Legacy EP API; use `append_execution_provider()` |
-| ❌ | ReleaseCUDAProviderOptions | Legacy EP API; use `append_execution_provider()` |
-| ❌ | SessionOptionsAppendExecutionProvider_MIGraphX | Legacy EP API; use `append_execution_provider()` |
+| ➖ | SessionOptionsAppendExecutionProvider_CUDA_V2 | Legacy EP API; use `append_execution_provider()` |
+| ➖ | CreateCUDAProviderOptions | Legacy EP API; use `append_execution_provider()` |
+| ➖ | UpdateCUDAProviderOptions | Legacy EP API; use `append_execution_provider()` |
+| ➖ | GetCUDAProviderOptionsAsString | Legacy EP API; use `append_execution_provider()` |
+| ➖ | ReleaseCUDAProviderOptions | Legacy EP API; use `append_execution_provider()` |
+| ➖ | SessionOptionsAppendExecutionProvider_MIGraphX | Legacy EP API; use `append_execution_provider()` |
 
 ## OrtApi — Version 1.12
 
@@ -247,19 +248,19 @@ Legend:
 | ❌ | InvokeOp | Op invocation not in scope |
 | ❌ | ReleaseOp | Op invocation not in scope |
 | ✅ | SessionOptionsAppendExecutionProvider | `SessionOptions.append_execution_provider()` |
-| ❌ | CopyKernelInfo | Custom op / kernel info not in scope |
-| ❌ | ReleaseKernelInfo | Custom op / kernel info not in scope |
+| ➖ | CopyKernelInfo | Custom op / kernel info not in scope |
+| ➖ | ReleaseKernelInfo | Custom op / kernel info not in scope |
 
 ## OrtApi — Version 1.13
 
 | | API | Detail |
 |---|---|---|
-| ❌ | GetTrainingApi | Training API not in scope |
-| ❌ | SessionOptionsAppendExecutionProvider_CANN | Legacy EP API; use `append_execution_provider()` |
-| ❌ | CreateCANNProviderOptions | Legacy EP API; use `append_execution_provider()` |
-| ❌ | UpdateCANNProviderOptions | Legacy EP API; use `append_execution_provider()` |
-| ❌ | GetCANNProviderOptionsAsString | Legacy EP API; use `append_execution_provider()` |
-| ❌ | ReleaseCANNProviderOptions | Legacy EP API; use `append_execution_provider()` |
+| ➖ | GetTrainingApi | Training API not in scope |
+| ➖ | SessionOptionsAppendExecutionProvider_CANN | Legacy EP API; use `append_execution_provider()` |
+| ➖ | CreateCANNProviderOptions | Legacy EP API; use `append_execution_provider()` |
+| ➖ | UpdateCANNProviderOptions | Legacy EP API; use `append_execution_provider()` |
+| ➖ | GetCANNProviderOptionsAsString | Legacy EP API; use `append_execution_provider()` |
+| ➖ | ReleaseCANNProviderOptions | Legacy EP API; use `append_execution_provider()` |
 
 ## OrtApi — Version 1.14
 
@@ -267,15 +268,15 @@ Legend:
 |---|---|---|
 | ✅ | MemoryInfoGetDeviceType | `MemoryInfo.device_type` |
 | ✅ | UpdateEnvWithCustomLogLevel | `ortpy.set_log_level()` |
-| ❌ | SetGlobalIntraOpThreadAffinity | Global thread pool configuration not exposed |
+| ✅ | SetGlobalIntraOpThreadAffinity | `ThreadingOptions.set_intra_op_thread_affinity()` |
 | ✅ | RegisterCustomOpsLibrary_V2 | `SessionOptions.register_custom_ops_library_v2()` |
 | ✅ | RegisterCustomOpsUsingFunction | `SessionOptions.register_custom_ops_using_function()` |
-| ❌ | KernelInfo_GetInputCount | Custom op / kernel info not in scope |
-| ❌ | KernelInfo_GetOutputCount | Custom op / kernel info not in scope |
-| ❌ | KernelInfo_GetInputName | Custom op / kernel info not in scope |
-| ❌ | KernelInfo_GetOutputName | Custom op / kernel info not in scope |
-| ❌ | KernelInfo_GetInputTypeInfo | Custom op / kernel info not in scope |
-| ❌ | KernelInfo_GetOutputTypeInfo | Custom op / kernel info not in scope |
+| ➖ | KernelInfo_GetInputCount | Custom op / kernel info not in scope |
+| ➖ | KernelInfo_GetOutputCount | Custom op / kernel info not in scope |
+| ➖ | KernelInfo_GetInputName | Custom op / kernel info not in scope |
+| ➖ | KernelInfo_GetOutputName | Custom op / kernel info not in scope |
+| ➖ | KernelInfo_GetInputTypeInfo | Custom op / kernel info not in scope |
+| ➖ | KernelInfo_GetOutputTypeInfo | Custom op / kernel info not in scope |
 | ✅ | HasSessionConfigEntry | `SessionOptions.has_session_config_entry()` |
 | ✅ | GetSessionConfigEntry | `SessionOptions.get_session_config_entry()` |
 
@@ -283,35 +284,35 @@ Legend:
 
 | | API | Detail |
 |---|---|---|
-| ❌ | SessionOptionsAppendExecutionProvider_Dnnl | Legacy EP API; use `append_execution_provider()` |
-| ❌ | CreateDnnlProviderOptions | Legacy EP API; use `append_execution_provider()` |
-| ❌ | UpdateDnnlProviderOptions | Legacy EP API; use `append_execution_provider()` |
-| ❌ | GetDnnlProviderOptionsAsString | Legacy EP API; use `append_execution_provider()` |
-| ❌ | ReleaseDnnlProviderOptions | Legacy EP API; use `append_execution_provider()` |
-| ❌ | KernelInfo_GetNodeName | Custom op / kernel info not in scope |
-| ❌ | KernelInfo_GetLogger | Custom op / kernel info not in scope |
-| ❌ | KernelContext_GetLogger | Custom op / kernel context not in scope |
+| ➖ | SessionOptionsAppendExecutionProvider_Dnnl | Legacy EP API; use `append_execution_provider()` |
+| ➖ | CreateDnnlProviderOptions | Legacy EP API; use `append_execution_provider()` |
+| ➖ | UpdateDnnlProviderOptions | Legacy EP API; use `append_execution_provider()` |
+| ➖ | GetDnnlProviderOptionsAsString | Legacy EP API; use `append_execution_provider()` |
+| ➖ | ReleaseDnnlProviderOptions | Legacy EP API; use `append_execution_provider()` |
+| ➖ | KernelInfo_GetNodeName | Custom op / kernel info not in scope |
+| ➖ | KernelInfo_GetLogger | Custom op / kernel info not in scope |
+| ➖ | KernelContext_GetLogger | Custom op / kernel context not in scope |
 | ❌ | Logger_LogMessage | Logger API not exposed |
 | ❌ | Logger_GetLoggingSeverityLevel | Logger API not exposed |
-| ❌ | KernelInfoGetConstantInput_tensor | Custom op / kernel info not in scope |
+| ➖ | KernelInfoGetConstantInput_tensor | Custom op / kernel info not in scope |
 | ✅ | CastTypeInfoToOptionalTypeInfo | Used internally by `TypeInfo.optional_contained_type` |
 | ✅ | GetOptionalContainedTypeInfo | `TypeInfo.optional_contained_type` |
-| ❌ | KernelContext_GetAllocator | Custom op / kernel context not in scope |
-| ❌ | GetBuildInfoString | Not exposed |
+| ➖ | KernelContext_GetAllocator | Custom op / kernel context not in scope |
+| ➖ | GetBuildInfoString | Not exposed |
 
 ## OrtApi — Version 1.16
 
 | | API | Detail |
 |---|---|---|
-| ❌ | CreateROCMProviderOptions | Legacy EP API; use `append_execution_provider()` |
-| ❌ | UpdateROCMProviderOptions | Legacy EP API; use `append_execution_provider()` |
-| ❌ | GetROCMProviderOptionsAsString | Legacy EP API; use `append_execution_provider()` |
-| ❌ | ReleaseROCMProviderOptions | Legacy EP API; use `append_execution_provider()` |
-| ❌ | UpdateTensorRTProviderOptionsWithValue | Legacy EP API; use `append_execution_provider()` |
-| ❌ | GetTensorRTProviderOptionsByName | Legacy EP API; use `append_execution_provider()` |
-| ❌ | UpdateCUDAProviderOptionsWithValue | Legacy EP API; use `append_execution_provider()` |
-| ❌ | GetCUDAProviderOptionsByName | Legacy EP API; use `append_execution_provider()` |
-| ❌ | KernelContext_GetResource | Custom op / kernel context not in scope |
+| ➖ | CreateROCMProviderOptions | Legacy EP API; use `append_execution_provider()` |
+| ➖ | UpdateROCMProviderOptions | Legacy EP API; use `append_execution_provider()` |
+| ➖ | GetROCMProviderOptionsAsString | Legacy EP API; use `append_execution_provider()` |
+| ➖ | ReleaseROCMProviderOptions | Legacy EP API; use `append_execution_provider()` |
+| ➖ | UpdateTensorRTProviderOptionsWithValue | Legacy EP API; use `append_execution_provider()` |
+| ➖ | GetTensorRTProviderOptionsByName | Legacy EP API; use `append_execution_provider()` |
+| ➖ | UpdateCUDAProviderOptionsWithValue | Legacy EP API; use `append_execution_provider()` |
+| ➖ | GetCUDAProviderOptionsByName | Legacy EP API; use `append_execution_provider()` |
+| ➖ | KernelContext_GetResource | Custom op / kernel context not in scope |
 
 ## OrtApi — Version 1.17
 
@@ -325,16 +326,16 @@ Legend:
 | ❌ | SetSymbolicDimensions | Standalone creation not exposed |
 | ❌ | ReadOpAttr | Op invocation not in scope |
 | ✅ | SetDeterministicCompute | `SessionOptions.set_deterministic_compute()` |
-| ❌ | KernelContext_ParallelFor | Custom op / kernel context not in scope |
-| ❌ | SessionOptionsAppendExecutionProvider_OpenVINO_V2 | Legacy EP API; use `append_execution_provider()` |
+| ➖ | KernelContext_ParallelFor | Custom op / kernel context not in scope |
+| ➖ | SessionOptionsAppendExecutionProvider_OpenVINO_V2 | Legacy EP API; use `append_execution_provider()` |
 
 ## OrtApi — Version 1.18
 
 | | API | Detail |
 |---|---|---|
-| ❌ | SessionOptionsAppendExecutionProvider_VitisAI | Legacy EP API; use `append_execution_provider()` |
-| ❌ | KernelContext_GetScratchBuffer | Custom op / kernel context not in scope |
-| ❌ | KernelInfoGetAllocator | Custom op / kernel info not in scope |
+| ➖ | SessionOptionsAppendExecutionProvider_VitisAI | Legacy EP API; use `append_execution_provider()` |
+| ➖ | KernelContext_GetScratchBuffer | Custom op / kernel context not in scope |
+| ➖ | KernelInfoGetAllocator | Custom op / kernel info not in scope |
 | ✅ | AddExternalInitializersFromFilesInMemory | `SessionOptions.add_external_initializers_from_files_in_memory()` |
 
 ## OrtApi — Version 1.20
@@ -362,9 +363,9 @@ Legend:
 | ✅ | GetCompileApi | Used internally by `ModelCompilationOptions` |
 | ✅ | CreateKeyValuePairs | Used internally by EP registration helpers |
 | ✅ | AddKeyValuePair | Used internally by EP registration helpers |
-| ❌ | GetKeyValue | Not directly exposed |
-| ❌ | GetKeyValuePairs | Not directly exposed |
-| ❌ | RemoveKeyValuePair | Not directly exposed |
+| ➖ | GetKeyValue | Not directly exposed |
+| ➖ | GetKeyValuePairs | Not directly exposed |
+| ➖ | RemoveKeyValuePair | Not directly exposed |
 | ✅ | ReleaseKeyValuePairs | Used internally (via RAII) |
 | ✅ | RegisterExecutionProviderLibrary | `ortpy.register_execution_provider_library()` |
 | ✅ | UnregisterExecutionProviderLibrary | `ortpy.unregister_execution_provider_library()` |
@@ -382,14 +383,14 @@ Legend:
 | ✅ | EpDevice_EpMetadata | `EpDevice.ep_metadata` |
 | ✅ | EpDevice_EpOptions | `EpDevice.ep_options` |
 | ✅ | EpDevice_Device | `EpDevice.device` |
-| ❌ | GetEpApi | EP implementation not in scope |
+| ➖ | GetEpApi | EP implementation not in scope |
 
 ## OrtApi — Version 1.23
 
 | | API | Detail |
 |---|---|---|
 | ✅ | GetTensorSizeInBytes | `Value.get_tensor_size_in_bytes()` |
-| ❌ | AllocatorGetStats | Allocator management not exposed |
+| ➖ | AllocatorGetStats | Allocator management not in scope |
 | ❌ | CreateMemoryInfo_V2 | V2 memory info creation not exposed |
 | ❌ | MemoryInfoGetDeviceMemType | Not exposed |
 | ❌ | MemoryInfoGetVendorId | Not exposed |
@@ -445,9 +446,9 @@ Legend:
 | ❌ | ExternalInitializerInfo_GetByteSize | Graph inspection not in scope |
 | ✅ | GetRunConfigEntry | `RunOptions.get_run_config_entry()` |
 | ✅ | EpDevice_MemoryInfo | `EpDevice.get_memory_info()` |
-| ❌ | CreateSharedAllocator | Allocator management not exposed |
-| ❌ | GetSharedAllocator | Allocator management not exposed |
-| ❌ | ReleaseSharedAllocator | Allocator management not exposed |
+| ➖ | CreateSharedAllocator | Allocator management not in scope |
+| ➖ | GetSharedAllocator | Allocator management not in scope |
+| ➖ | ReleaseSharedAllocator | Allocator management not in scope |
 | ❌ | GetTensorData | Low-level pointer access; use `Value.numpy()` instead |
 | ✅ | GetSessionOptionsConfigEntries | `SessionOptions.get_session_config_entries()` |
 | ✅ | SessionGetMemoryInfoForInputs | `Session.get_memory_info_for_inputs()` |
@@ -465,10 +466,10 @@ Legend:
 | | API | Detail |
 |---|---|---|
 | ❌ | TensorTypeAndShape_HasShape | Not exposed |
-| ❌ | KernelInfo_GetConfigEntries | Custom op / kernel info not in scope |
-| ❌ | KernelInfo_GetOperatorDomain | Custom op / kernel info not in scope |
-| ❌ | KernelInfo_GetOperatorType | Custom op / kernel info not in scope |
-| ❌ | KernelInfo_GetOperatorSinceVersion | Custom op / kernel info not in scope |
+| ➖ | KernelInfo_GetConfigEntries | Custom op / kernel info not in scope |
+| ➖ | KernelInfo_GetOperatorDomain | Custom op / kernel info not in scope |
+| ➖ | KernelInfo_GetOperatorType | Custom op / kernel info not in scope |
+| ➖ | KernelInfo_GetOperatorSinceVersion | Custom op / kernel info not in scope |
 | ❌ | GetInteropApi | Interop API not in scope |
 | ✅ | SessionGetEpDeviceForOutputs | `Session.get_ep_device_for_outputs()` (guarded `ORT_API_VERSION >= 24`) |
 | ✅ | GetNumHardwareDevices | Used internally by `ortpy.get_hardware_devices()` (guarded) |
@@ -480,7 +481,7 @@ Legend:
 | ✅ | ReleaseDeviceEpIncompatibilityDetails | Used internally (guarded) |
 | ✅ | GetCompatibilityInfoFromModel | `ortpy.get_compatibility_info_from_model()` (guarded) |
 | ✅ | GetCompatibilityInfoFromModelBytes | `ortpy.get_compatibility_info_from_model_bytes()` (guarded) |
-| ❌ | CreateEnvWithOptions | Not exposed |
+| ✅ | CreateEnvWithOptions | `ortpy.create_env(...)` (guarded `ORT_API_VERSION >= 24`) |
 | ✅ | Session_GetEpGraphAssignmentInfo | `Session.get_ep_graph_assignment_info()` (guarded `ORT_API_VERSION >= 24`) |
 | ✅ | EpAssignedSubgraph_GetEpName | `EpAssignedSubgraph.ep_name` (guarded) |
 | ✅ | EpAssignedSubgraph_GetNodes | `EpAssignedSubgraph.nodes` (guarded) |

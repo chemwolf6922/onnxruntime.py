@@ -104,12 +104,43 @@ namespace Ortpy
     OrtCompiledModelCompatibility GetModelCompatibilityForEpDevices(
         const std::vector<EpDevice>& epDevices, const std::string& compatibilityInfo);
 
+    class ThreadingOptions : public OrtTypeWrapper<OrtThreadingOptions, ThreadingOptions>
+    {
+    public:
+        static void ReleaseOrtType(OrtThreadingOptions* ptr);
+        ThreadingOptions();
+        void SetIntraOpNumThreads(int numThreads);
+        void SetInterOpNumThreads(int numThreads);
+        void SetSpinControl(bool allowSpinning);
+        void SetDenormalAsZero();
+        void SetIntraOpThreadAffinity(const std::string& affinity);
+    };
+
     class Env : public OrtTypeWrapper<OrtEnv, Env>
     {
     public:
+        using LoggingFunction = std::function<
+            void(OrtLoggingLevel severity,
+                 const std::string& category,
+                 const std::string& logid,
+                 const std::string& codeLocation,
+                 const std::string& message)>;
+
         static std::shared_ptr<Env> GetSingleton();
         static void ReleaseSingleton();
         static void ReleaseOrtType(OrtEnv* ptr);
+
+        /** Explicit env creation — must be called before any other API that creates the env. */
+        static void CreateEnv(
+            OrtLoggingLevel logLevel = ORT_LOGGING_LEVEL_WARNING,
+            const std::string& logId = "Ortpy",
+            const LoggingFunction& loggingFunc = nullptr,
+            const ThreadingOptions* threadingOpts = nullptr
+#if ORT_API_VERSION >= 24
+            , const std::unordered_map<std::string, std::string>& configEntries = {}
+#endif /** ORT_API_VERSION >= 24 */
+        );
+
         void RegisterExecutionProviderLibrary(const std::string& name, const std::string& path);
         void UnregisterExecutionProviderLibrary(const std::string& name);
         std::vector<EpDevice> GetEpDevices() const;
@@ -132,7 +163,15 @@ namespace Ortpy
 #endif /** ORT_API_VERSION >= 24 */
     private:
         static std::shared_ptr<Env> _instance;
+        LoggingFunction _loggingFunction;
         Env();
+        Env(OrtLoggingLevel logLevel, const std::string& logId,
+            const LoggingFunction& loggingFunc,
+            const ThreadingOptions* threadingOpts
+#if ORT_API_VERSION >= 24
+            , const std::unordered_map<std::string, std::string>& configEntries
+#endif /** ORT_API_VERSION >= 24 */
+        );
     };
 
     class ModelCompilationOptions : public OrtTypeWrapper<OrtModelCompilationOptions, ModelCompilationOptions>

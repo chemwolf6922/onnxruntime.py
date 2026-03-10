@@ -244,6 +244,50 @@ void Ortpy::Status::ReleaseOrtType(OrtStatus* ptr)
     GetApi()->ReleaseStatus(ptr);
 }
 
+/** ThreadingOptions */
+
+void Ortpy::ThreadingOptions::ReleaseOrtType(OrtThreadingOptions* ptr)
+{
+    GetApi()->ReleaseThreadingOptions(ptr);
+}
+
+Ortpy::ThreadingOptions::ThreadingOptions()
+    : OrtTypeWrapper<OrtThreadingOptions, ThreadingOptions>(nullptr)
+{
+    Ortpy::Status status = GetApi()->CreateThreadingOptions(&_ptr);
+    status.Check();
+}
+
+void Ortpy::ThreadingOptions::SetIntraOpNumThreads(int numThreads)
+{
+    Ortpy::Status status = GetApi()->SetGlobalIntraOpNumThreads(_ptr, numThreads);
+    status.Check();
+}
+
+void Ortpy::ThreadingOptions::SetInterOpNumThreads(int numThreads)
+{
+    Ortpy::Status status = GetApi()->SetGlobalInterOpNumThreads(_ptr, numThreads);
+    status.Check();
+}
+
+void Ortpy::ThreadingOptions::SetSpinControl(bool allowSpinning)
+{
+    Ortpy::Status status = GetApi()->SetGlobalSpinControl(_ptr, allowSpinning ? 1 : 0);
+    status.Check();
+}
+
+void Ortpy::ThreadingOptions::SetDenormalAsZero()
+{
+    Ortpy::Status status = GetApi()->SetGlobalDenormalAsZero(_ptr);
+    status.Check();
+}
+
+void Ortpy::ThreadingOptions::SetIntraOpThreadAffinity(const std::string& affinity)
+{
+    Ortpy::Status status = GetApi()->SetGlobalIntraOpThreadAffinity(_ptr, affinity.c_str());
+    status.Check();
+}
+
 /** Env */
 
 std::shared_ptr<Ortpy::Env> Ortpy::Env::_instance = nullptr;
@@ -262,6 +306,30 @@ void Ortpy::Env::ReleaseSingleton()
     _instance.reset();
 }
 
+void Ortpy::Env::CreateEnv(
+    OrtLoggingLevel logLevel,
+    const std::string& logId,
+    const LoggingFunction& loggingFunc,
+    const ThreadingOptions* threadingOpts
+#if ORT_API_VERSION >= 24
+    , const std::unordered_map<std::string, std::string>& configEntries
+#endif /** ORT_API_VERSION >= 24 */
+)
+{
+    if (_instance)
+    {
+        throw std::runtime_error(
+            "Environment already exists. create_env() must be called before any other ortpy API "
+            "that triggers environment creation (e.g., Session, get_ep_devices).");
+    }
+    _instance = std::shared_ptr<Ortpy::Env>(
+        new Ortpy::Env(logLevel, logId, loggingFunc, threadingOpts
+#if ORT_API_VERSION >= 24
+            , configEntries
+#endif /** ORT_API_VERSION >= 24 */
+        ));
+}
+
 Ortpy::Env::Env()
     : OrtTypeWrapper<OrtEnv, Env>(nullptr)
 {
@@ -269,6 +337,118 @@ Ortpy::Env::Env()
     status.Check();
     /** Ignore the return value. */
     status = GetApi()->DisableTelemetryEvents(_ptr);
+}
+
+Ortpy::Env::Env(
+    OrtLoggingLevel logLevel,
+    const std::string& logId,
+    const LoggingFunction& loggingFunc,
+    const ThreadingOptions* threadingOpts
+#if ORT_API_VERSION >= 24
+    , const std::unordered_map<std::string, std::string>& configEntries
+#endif /** ORT_API_VERSION >= 24 */
+)
+    : OrtTypeWrapper<OrtEnv, Env>(nullptr)
+{
+    if (loggingFunc)
+    {
+        _loggingFunction = loggingFunc;
+    }
+
+    /**
+     * The env logging function is stored as an instance member on the singleton Env.
+     * Unlike SessionOptions callbacks, this callback is NOT traversable by Python's cyclic GC.
+     * This means that if the callable participates in a reference cycle, the cycle will not be
+     * broken until process shutdown (when ReleaseSingleton is called via atexit). This is by
+     * design — the callback must outlive the env, and the env lives for the entire process.
+     */
+    OrtLoggingFunction wrapper = [](
+        void* param,
+        OrtLoggingLevel severity,
+        const char* category,
+        const char* logid,
+        const char* code_location,
+        const char* message
+    ) {
+        try
+        {
+            auto* env = static_cast<Ortpy::Env*>(param);
+            auto& fn = env->_loggingFunction;
+            if (fn)
+            {
+                nanobind::gil_scoped_acquire acquire;
+                fn(severity,
+                   category ? category : "",
+                   logid ? logid : "",
+                   code_location ? code_location : "",
+                   message ? message : "");
+            }
+        }
+        catch (...)
+        {
+            /** Cannot propagate through C void callback. Suppress. */
+        }
+    };
+
+#if ORT_API_VERSION >= 24
+    /** Use CreateEnvWithOptions — the unified v1.24+ path */
+    OrtEnvCreationOptions opts{};
+    opts.version = ORT_API_VERSION;
+    opts.logging_severity_level = static_cast<int32_t>(logLevel);
+    opts.log_id = logId.c_str();
+    opts.custom_logging_function = loggingFunc ? wrapper : nullptr;
+    opts.custom_logging_param = loggingFunc ? this : nullptr;
+    opts.threading_options = threadingOpts
+        ? static_cast<OrtThreadingOptions*>(*threadingOpts)
+        : nullptr;
+
+    /** Build OrtKeyValuePairs if configEntries provided */
+    OrtKeyValuePairs* kvPairs = nullptr;
+    if (!configEntries.empty())
+    {
+        GetApi()->CreateKeyValuePairs(&kvPairs);
+        for (const auto& [k, v] : configEntries)
+        {
+            GetApi()->AddKeyValuePair(kvPairs, k.c_str(), v.c_str());
+        }
+    }
+    opts.config_entries = kvPairs;
+
+    Ortpy::Status status = GetApi()->CreateEnvWithOptions(&opts, &_ptr);
+    if (kvPairs)
+    {
+        GetApi()->ReleaseKeyValuePairs(kvPairs);
+    }
+    status.Check();
+#else
+    /** Dispatch to the appropriate older API */
+    Ortpy::Status status{ nullptr };
+    if (loggingFunc && threadingOpts)
+    {
+        status = GetApi()->CreateEnvWithCustomLoggerAndGlobalThreadPools(
+            wrapper, this, logLevel, logId.c_str(),
+            static_cast<OrtThreadingOptions*>(*threadingOpts), &_ptr);
+    }
+    else if (loggingFunc)
+    {
+        status = GetApi()->CreateEnvWithCustomLogger(
+            wrapper, this, logLevel, logId.c_str(), &_ptr);
+    }
+    else if (threadingOpts)
+    {
+        status = GetApi()->CreateEnvWithGlobalThreadPools(
+            logLevel, logId.c_str(),
+            static_cast<OrtThreadingOptions*>(*threadingOpts), &_ptr);
+    }
+    else
+    {
+        status = GetApi()->CreateEnv(logLevel, logId.c_str(), &_ptr);
+    }
+    status.Check();
+#endif /** ORT_API_VERSION >= 24 */
+
+    /** Ignore the return value. */
+    Ortpy::Status telemetryStatus = GetApi()->DisableTelemetryEvents(_ptr);
 }
 
 void Ortpy::Env::ReleaseOrtType(OrtEnv* ptr)

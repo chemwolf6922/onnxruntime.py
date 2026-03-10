@@ -1,4 +1,6 @@
 """Tests for module-level functions and Env-related APIs."""
+import subprocess
+import sys
 import pytest
 
 import ortpy as ort
@@ -137,3 +139,150 @@ class TestEnums:
     def test_device_memory_type(self):
         assert ort.DeviceMemoryType.DEFAULT is not None
         assert ort.DeviceMemoryType.HOST_ACCESSIBLE is not None
+
+
+class TestThreadingOptions:
+    def test_create_threading_options(self):
+        opts = ort.ThreadingOptions()
+        assert opts is not None
+
+    def test_set_intra_op_num_threads(self):
+        opts = ort.ThreadingOptions()
+        opts.set_intra_op_num_threads(4)
+
+    def test_set_inter_op_num_threads(self):
+        opts = ort.ThreadingOptions()
+        opts.set_inter_op_num_threads(2)
+
+    def test_set_spin_control(self):
+        opts = ort.ThreadingOptions()
+        opts.set_spin_control(False)
+        opts.set_spin_control(True)
+
+    def test_set_denormal_as_zero(self):
+        opts = ort.ThreadingOptions()
+        opts.set_denormal_as_zero()
+
+    def test_chained_configuration(self):
+        opts = ort.ThreadingOptions()
+        opts.set_intra_op_num_threads(4)
+        opts.set_inter_op_num_threads(2)
+        opts.set_spin_control(False)
+        opts.set_denormal_as_zero()
+
+
+class TestCreateEnv:
+    """Tests for create_env().
+
+    Since the env is a process-wide singleton and other tests trigger lazy
+    creation, we run create_env() calls in subprocesses.
+    """
+
+    def _run_script(self, script: str) -> subprocess.CompletedProcess:
+        return subprocess.run(
+            [sys.executable, "-c", script],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+
+    def test_create_env_default(self):
+        result = self._run_script("""
+import ortpy as ort
+ort.create_env()
+# Verify env works by creating a session-related call
+providers = ort.get_available_providers()
+assert 'CPUExecutionProvider' in providers
+print('OK')
+""")
+        assert result.returncode == 0, f"stderr: {result.stderr}"
+        assert "OK" in result.stdout
+
+    def test_create_env_with_log_level(self):
+        result = self._run_script("""
+import ortpy as ort
+ort.create_env(log_level=ort.LogLevel.INFO, log_id="test_app")
+print('OK')
+""")
+        assert result.returncode == 0, f"stderr: {result.stderr}"
+        assert "OK" in result.stdout
+
+    def test_create_env_with_threading_options(self):
+        result = self._run_script("""
+import ortpy as ort
+opts = ort.ThreadingOptions()
+opts.set_intra_op_num_threads(2)
+opts.set_inter_op_num_threads(1)
+ort.create_env(threading_options=opts)
+providers = ort.get_available_providers()
+assert 'CPUExecutionProvider' in providers
+print('OK')
+""")
+        assert result.returncode == 0, f"stderr: {result.stderr}"
+        assert "OK" in result.stdout
+
+    def test_create_env_with_logging_function(self):
+        result = self._run_script("""
+import ortpy as ort
+log_messages = []
+def my_logger(severity, category, log_id, code_location, message):
+    log_messages.append(message)
+ort.create_env(
+    log_level=ort.LogLevel.VERBOSE,
+    logging_function=my_logger,
+)
+print('OK')
+""")
+        assert result.returncode == 0, f"stderr: {result.stderr}"
+        assert "OK" in result.stdout
+
+    def test_create_env_with_all_options(self):
+        result = self._run_script("""
+import ortpy as ort
+def my_logger(severity, category, log_id, code_location, message):
+    pass
+opts = ort.ThreadingOptions()
+opts.set_intra_op_num_threads(2)
+ort.create_env(
+    log_level=ort.LogLevel.WARNING,
+    log_id="full_test",
+    logging_function=my_logger,
+    threading_options=opts,
+)
+print('OK')
+""")
+        assert result.returncode == 0, f"stderr: {result.stderr}"
+        assert "OK" in result.stdout
+
+    def test_create_env_fails_after_session(self):
+        """create_env() should fail if env was already lazily created."""
+        result = self._run_script("""
+import ortpy as ort
+# This triggers lazy env creation
+_ = ort.get_ep_devices()
+try:
+    ort.create_env()
+    print('SHOULD_HAVE_FAILED')
+except RuntimeError as e:
+    assert 'already exists' in str(e).lower()
+    print('OK')
+""")
+        assert result.returncode == 0, f"stderr: {result.stderr}"
+        assert "OK" in result.stdout
+        assert "SHOULD_HAVE_FAILED" not in result.stdout
+
+    def test_create_env_fails_on_double_call(self):
+        """create_env() should fail if called twice."""
+        result = self._run_script("""
+import ortpy as ort
+ort.create_env()
+try:
+    ort.create_env()
+    print('SHOULD_HAVE_FAILED')
+except RuntimeError as e:
+    assert 'already exists' in str(e).lower()
+    print('OK')
+""")
+        assert result.returncode == 0, f"stderr: {result.stderr}"
+        assert "OK" in result.stdout
+        assert "SHOULD_HAVE_FAILED" not in result.stdout

@@ -106,6 +106,22 @@ NB_MODULE(_ortpy, m) {
         .value("FPGA", OrtMemoryInfoDeviceType_FPGA)
         .value("NPU", OrtMemoryInfoDeviceType_NPU);
 
+    nanobind::class_<Ortpy::ThreadingOptions>(m, "ThreadingOptions")
+        .def(nanobind::init<>())
+        .def("set_intra_op_num_threads",
+            &Ortpy::ThreadingOptions::SetIntraOpNumThreads,
+            nanobind::arg("num_threads"))
+        .def("set_inter_op_num_threads",
+            &Ortpy::ThreadingOptions::SetInterOpNumThreads,
+            nanobind::arg("num_threads"))
+        .def("set_spin_control",
+            &Ortpy::ThreadingOptions::SetSpinControl,
+            nanobind::arg("allow_spinning"))
+        .def("set_denormal_as_zero", &Ortpy::ThreadingOptions::SetDenormalAsZero)
+        .def("set_intra_op_thread_affinity",
+            &Ortpy::ThreadingOptions::SetIntraOpThreadAffinity,
+            nanobind::arg("affinity"));
+
     nanobind::class_<Ortpy::HardwareDevice>(m, "HardwareDevice")
         .def_ro("type", &Ortpy::HardwareDevice::type)
         .def_ro("vendor_id", &Ortpy::HardwareDevice::vendorId)
@@ -133,6 +149,16 @@ NB_MODULE(_ortpy, m) {
         .def_ro("ep_name", &Ortpy::EpAssignedSubgraph::epName)
         .def_ro("nodes", &Ortpy::EpAssignedSubgraph::nodes);
 #endif /** ORT_API_VERSION >= 24 */
+
+    m.def("create_env", &Ortpy::Env::CreateEnv,
+        nanobind::arg("log_level") = ORT_LOGGING_LEVEL_WARNING,
+        nanobind::arg("log_id") = "Ortpy",
+        nanobind::arg("logging_function") = nullptr,
+        nanobind::arg("threading_options") = nullptr
+#if ORT_API_VERSION >= 24
+        , nanobind::arg("config_entries") = std::unordered_map<std::string, std::string>{}
+#endif /** ORT_API_VERSION >= 24 */
+    );
 
     m.def("register_execution_provider_library", [](const std::string& name, const std::string& path) {
         Ortpy::Env::GetSingleton()->RegisterExecutionProviderLibrary(name, path);
