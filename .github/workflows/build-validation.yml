@@ -31,9 +31,17 @@ jobs:
 
     - name: Test wheels
       run: |
+        Remove-Item -Recurse -Force onnxruntime
         pip install (Get-ChildItem dist/*.whl | Select-Object -ExpandProperty FullName)
         pytest test/ -v
       shell: powershell
+
+    - name: Upload wheels
+      if: github.event_name == 'workflow_dispatch'
+      uses: actions/upload-artifact@v4
+      with:
+        name: wheels-windows
+        path: dist/*.whl
 
   build-validation-linux:
     name: Build Validation (Linux)
@@ -57,9 +65,28 @@ jobs:
 
     - name: Test wheels
       run: |
+        rm -rf onnxruntime
         /opt/python/cp314-cp314/bin/python -m pip install dist/*.whl
         /opt/python/cp314-cp314/bin/python -m pytest test/ -v
       shell: bash
+
+    - name: Test with system onnxruntime
+      run: |
+        /opt/python/cp314-cp314/bin/python -m pip uninstall ortpy-lib -y
+        /opt/python/cp314-cp314/bin/python tools/get_onnxruntime.py
+        cp onnxruntime/lib/libonnxruntime.so.* /usr/local/lib/
+        cp onnxruntime/lib/libonnxruntime_providers_shared.so /usr/local/lib/ 2>/dev/null || true
+        ldconfig
+        rm -rf onnxruntime
+        /opt/python/cp314-cp314/bin/python -m pytest test/ -v
+      shell: bash
+
+    - name: Upload wheels
+      if: github.event_name == 'workflow_dispatch'
+      uses: actions/upload-artifact@v4
+      with:
+        name: wheels-linux
+        path: dist/*.whl
 
   build-validation-macos:
     name: Build Validation (macOS)
@@ -81,6 +108,22 @@ jobs:
 
     - name: Test wheels
       run: |
+        rm -rf onnxruntime
         pip install dist/*.whl
         pytest test/ -v
       shell: bash
+
+    - name: Test with system onnxruntime
+      run: |
+        pip uninstall ortpy-lib -y
+        brew install onnxruntime
+        export DYLD_LIBRARY_PATH="$(brew --prefix)/lib:${DYLD_LIBRARY_PATH}"
+        pytest test/ -v
+      shell: bash
+
+    - name: Upload wheels
+      if: github.event_name == 'workflow_dispatch'
+      uses: actions/upload-artifact@v4
+      with:
+        name: wheels-macos
+        path: dist/*.whl

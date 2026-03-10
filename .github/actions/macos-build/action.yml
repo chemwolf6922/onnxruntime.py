@@ -27,3 +27,12 @@ runs:
         cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
         cmake --build build
       shell: bash
+
+    - name: List wheel contents
+      run: |
+        for whl in dist/*.whl; do
+          echo "=== $whl ==="
+          python -m zipfile -l "$whl"
+          echo
+        done
+      shell: bash

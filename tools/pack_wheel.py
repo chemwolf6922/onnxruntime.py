@@ -64,6 +64,55 @@ def get_shared_libs(lib_dir: Path) -> list[Path]:
         raise FileNotFoundError(f"No ONNX Runtime shared libraries found in {lib_dir}")
     return libs
 
+def fix_rpath(native_ext: Path) -> None:
+    """Set the RPATH/LC_RPATH on the native extension so it finds shared libs
+    in the same directory at runtime. This is done after copying the binary
+    into the wheel staging directory so the build-time RPATH (which points
+    to the onnxruntime source tree) is not baked into the distributed wheel."""
+    system = platform.system()
+    if system == "Linux":
+        subprocess.run(
+            ["patchelf", "--set-rpath", "$ORIGIN", str(native_ext)],
+            check=True,
+        )
+    elif system == "Darwin":
+        # Rewrite @rpath/libonnxruntime.<version>.dylib references to the
+        # unversioned @rpath/libonnxruntime.dylib so it matches the filename
+        # shipped by the ortpy_lib wheel. Then replace build-time rpaths with
+        # @loader_path so the dynamic linker checks the same directory first,
+        # falling back to DYLD_LIBRARY_PATH and system paths.
+        result = subprocess.run(
+            ["otool", "-L", str(native_ext)],
+            capture_output=True, text=True, check=True,
+        )
+        for line in result.stdout.splitlines():
+            line = line.strip()
+            if "@rpath/" in line and "libonnxruntime" in line:
+                old_ref = line.split()[0]  # e.g. @rpath/libonnxruntime.1.24.3.dylib
+                # Keep @rpath/ prefix but use the unversioned name
+                new_ref = "@rpath/libonnxruntime.dylib"
+                subprocess.run(
+                    ["install_name_tool", "-change", old_ref, new_ref, str(native_ext)],
+                    check=True,
+                )
+        # Remove any existing rpaths (build-time paths) and add @loader_path
+        result = subprocess.run(
+            ["otool", "-l", str(native_ext)],
+            capture_output=True, text=True, check=True,
+        )
+        for line in result.stdout.splitlines():
+            line = line.strip()
+            if line.startswith("path "):
+                old_rpath = line.split()[1]
+                subprocess.run(
+                    ["install_name_tool", "-delete_rpath", old_rpath, str(native_ext)],
+                    check=True,
+                )
+        subprocess.run(
+            ["install_name_tool", "-add_rpath", "@loader_path", str(native_ext)],
+            check=True,
+        )
+
 def repair_wheel(whl_path: Path) -> None:
     """Repair a wheel in-place using platform-specific tools.
     
@@ -77,10 +126,23 @@ def repair_wheel(whl_path: Path) -> None:
         return
 
     if system == "Linux":
-        tool_cmd = [sys.executable, "-m", "auditwheel", "repair"]
+        # Exclude all onnxruntime shared libs — they ship in the ortpy_lib wheel.
+        # Must also match versioned names (e.g. libonnxruntime.so.1.24.3) since
+        # auditwheel resolves libraries by SONAME. Include symlinks because the
+        # SONAME (e.g. libonnxruntime.so.1) is typically a symlink.
+        ort_lib_dir = Path(__file__).parent.parent / "onnxruntime" / "lib"
+        exclude_args = []
+        for lib in list(ort_lib_dir.glob("*.so")) + list(ort_lib_dir.glob("*.so.*")):
+            exclude_args += ["--exclude", lib.name]
+        tool_cmd = [sys.executable, "-m", "auditwheel", "repair"] + exclude_args
         tool_name = "auditwheel"
     elif system == "Darwin":
-        tool_cmd = [sys.executable, "-m", "delocate.cmd.delocate_wheel", "-v"]
+        # Exclude all onnxruntime shared libs — they ship in the ortpy_lib wheel
+        ort_lib_dir = Path(__file__).parent.parent / "onnxruntime" / "lib"
+        exclude_args = []
+        for lib in ort_lib_dir.glob("*.dylib"):
+            exclude_args += ["--exclude", lib.name]
+        tool_cmd = [sys.executable, "-m", "delocate.cmd.delocate_wheel", "-v"] + exclude_args
         tool_name = "delocate"
     else:
         return
@@ -114,8 +176,9 @@ def repair_wheel(whl_path: Path) -> None:
                 shutil.move(str(r), output_dir / r.name)
             print(f"Repaired: {whl_path.name} -> {', '.join(r.name for r in repaired)}")
 
-def pack_and_repair(wheel_build_dir: Path, output_dir: Path) -> None:
-    """Pack a wheel from the build directory and repair it."""
+def pack_and_repair(wheel_build_dir: Path, output_dir: Path, native_ext_name: str | None = None) -> None:
+    """Pack a wheel from the build directory and repair it.
+    If native_ext_name is provided, fix its RPATH after repair."""
     existing = set(output_dir.glob("*.whl"))
     subprocess.run(
         [sys.executable, "-m", "wheel", "pack", str(wheel_build_dir), "--dest-dir", str(output_dir)],
@@ -124,6 +187,41 @@ def pack_and_repair(wheel_build_dir: Path, output_dir: Path) -> None:
     new_wheels = set(output_dir.glob("*.whl")) - existing
     for whl in new_wheels:
         repair_wheel(whl)
+    # Fix RPATH after repair so the repair tool can still resolve dependencies
+    # using the build-time rpath, and we overwrite it afterward.
+    # Re-scan because repair may rename wheels (e.g. linux -> manylinux).
+    if native_ext_name:
+        repaired_wheels = set(output_dir.glob("*.whl")) - existing
+        for whl in repaired_wheels:
+            _fix_rpath_in_wheel(whl, native_ext_name)
+
+def _fix_rpath_in_wheel(whl_path: Path, native_ext_name: str) -> None:
+    """Unpack a wheel, fix the RPATH on the native extension, and repack."""
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        tmp = Path(tmp_dir)
+        result = subprocess.run(
+            [sys.executable, "-m", "wheel", "unpack", "-d", str(tmp), str(whl_path)],
+            capture_output=True, text=True,
+        )
+        if result.returncode != 0:
+            print(f"wheel unpack failed: {result.stderr}")
+            raise RuntimeError(f"wheel unpack failed for {whl_path.name}:\n{result.stderr}")
+        # wheel unpack creates a subdirectory named <name>-<version>
+        unpacked_dirs = list(tmp.iterdir())
+        if len(unpacked_dirs) != 1:
+            raise RuntimeError(f"Expected one unpacked directory, got {unpacked_dirs}")
+        unpacked = unpacked_dirs[0]
+        # Find and fix the native extension
+        matches = list(unpacked.rglob(f"{native_ext_name}*"))
+        for m in matches:
+            if m.suffix in (".so", ".dylib") or ".so." in m.name or m.name.endswith(".pyd"):
+                fix_rpath(m)
+        # Repack
+        whl_path.unlink()
+        subprocess.run(
+            [sys.executable, "-m", "wheel", "pack", str(unpacked), "--dest-dir", str(whl_path.parent)],
+            check=True,
+        )
 
 parser = ArgumentParser(description="Pack the ortpy and ortpy-lib wheels.")
 parser.add_argument(
@@ -157,6 +255,7 @@ binary_dir = build_dir / args.build_type
 # on single-config generators (Ninja/Make) it's directly under build/.
 ortpy_native_path = find_native_extension([binary_dir, build_dir], "_ortpy")
 shutil.copy(ortpy_native_path, wheel_build_source_dir)
+
 ortpy_pyi_path = build_dir / "_ortpy.pyi"
 if not ortpy_pyi_path.exists():
     raise FileNotFoundError("The type stub file is missing")
@@ -180,7 +279,7 @@ copy_file_with_replacements(
         "ORTPY_WHEEL_TAG": wheel_tag
     }
 )
-pack_and_repair(WHEEL_BUILD_DIR, WHEEL_OUTPUT_DIR)
+pack_and_repair(WHEEL_BUILD_DIR, WHEEL_OUTPUT_DIR, native_ext_name="_ortpy")
 
 # Pack the ortpy-lib wheel
 
@@ -190,7 +289,15 @@ wheel_build_source_dir = WHEEL_BUILD_DIR / "ortpy"
 wheel_build_source_dir.mkdir(parents=True, exist_ok=True)
 onnxruntime_lib_path = PROJECT_DIR / "onnxruntime" / "lib"
 for lib_path in get_shared_libs(onnxruntime_lib_path):
-    shutil.copy(lib_path, wheel_build_source_dir)
+    # On Linux, lib names like libfoo.so are symlinks to the SONAME (libfoo.so.1).
+    # Follow one symlink level to get the SONAME as the filename, so the dynamic
+    # linker can find it at runtime. shutil.copy resolves the full chain to get
+    # the actual file content. On macOS/Windows this is typically a no-op.
+    if lib_path.is_symlink():
+        soname = lib_path.parent / Path(lib_path.readlink())
+        shutil.copy(soname.resolve(), wheel_build_source_dir / soname.name)
+    else:
+        shutil.copy(lib_path, wheel_build_source_dir)
 onnxruntime_license_path = PROJECT_DIR / "onnxruntime" / "LICENSE"
 shutil.copy(onnxruntime_license_path, wheel_build_source_dir / "ONNXRUNTIME_LICENSE")
 wheel_build_dist_info_dir = WHEEL_BUILD_DIR / f"ortpy_lib-{get_lib_version()}.dist-info"

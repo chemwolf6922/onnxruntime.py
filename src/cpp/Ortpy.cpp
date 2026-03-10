@@ -102,7 +102,8 @@ std::vector<std::string> Ortpy::GetAvailableProviders()
     {
         result.emplace_back(providers[i]);
     }
-    GetApi()->ReleaseAvailableProviders(providers, count);
+    /** Status intentionally discarded — nothing to do if release fails. */
+    status = GetApi()->ReleaseAvailableProviders(providers, count);
     return result;
 }
 
@@ -195,13 +196,17 @@ std::optional<Ortpy::MemoryInfo> Ortpy::EpDevice::GetMemoryInfo(OrtDeviceMemoryT
         return std::nullopt;
     }
     const char* name = nullptr;
-    GetApi()->MemoryInfoGetName(mi, &name);
+    Ortpy::Status status = GetApi()->MemoryInfoGetName(mi, &name);
+    status.Check();
     OrtAllocatorType allocType;
-    GetApi()->MemoryInfoGetType(mi, &allocType);
+    status = GetApi()->MemoryInfoGetType(mi, &allocType);
+    status.Check();
     int id = 0;
-    GetApi()->MemoryInfoGetId(mi, &id);
+    status = GetApi()->MemoryInfoGetId(mi, &id);
+    status.Check();
     OrtMemType memType;
-    GetApi()->MemoryInfoGetMemType(mi, &memType);
+    status = GetApi()->MemoryInfoGetMemType(mi, &memType);
+    status.Check();
     return MemoryInfo{ name ? name : "Cpu", allocType, id, memType };
 }
 
@@ -1603,7 +1608,8 @@ Ortpy::Value::Value(OrtValue* ptr)
 
     /** Only create a numpy view for numeric (non-string) tensors */
     int isTensor = 0;
-    GetApi()->IsTensor(ptr, &isTensor);
+    Ortpy::Status status = GetApi()->IsTensor(ptr, &isTensor);
+    status.Check();
     if (!isTensor)
     {
         return;
@@ -1611,9 +1617,11 @@ Ortpy::Value::Value(OrtValue* ptr)
 
     /** Check for string tensor — can't create numpy view */
     OrtTensorTypeAndShapeInfo* info = nullptr;
-    GetApi()->GetTensorTypeAndShape(ptr, &info);
+    status = GetApi()->GetTensorTypeAndShape(ptr, &info);
+    status.Check();
     ONNXTensorElementDataType elemType;
-    GetApi()->GetTensorElementType(info, &elemType);
+    status = GetApi()->GetTensorElementType(info, &elemType);
+    status.Check();
     GetApi()->ReleaseTensorTypeAndShapeInfo(info);
     if (elemType == ONNX_TENSOR_ELEMENT_DATA_TYPE_STRING)
     {
@@ -1739,13 +1747,17 @@ std::optional<Ortpy::MemoryInfo> Ortpy::Value::GetTensorMemoryInfo() const
     status.Check();
     if (mi == nullptr) return std::nullopt;
     const char* name = nullptr;
-    GetApi()->MemoryInfoGetName(mi, &name);
+    status = GetApi()->MemoryInfoGetName(mi, &name);
+    status.Check();
     OrtAllocatorType allocType;
-    GetApi()->MemoryInfoGetType(mi, &allocType);
+    status = GetApi()->MemoryInfoGetType(mi, &allocType);
+    status.Check();
     int id = 0;
-    GetApi()->MemoryInfoGetId(mi, &id);
+    status = GetApi()->MemoryInfoGetId(mi, &id);
+    status.Check();
     OrtMemType memType;
-    GetApi()->MemoryInfoGetMemType(mi, &memType);
+    status = GetApi()->MemoryInfoGetMemType(mi, &memType);
+    status.Check();
     return MemoryInfo{ name ? name : "Cpu", allocType, id, memType };
 }
 
@@ -2273,13 +2285,17 @@ std::unordered_map<std::string, Ortpy::MemoryInfo> Ortpy::Session::GetMemoryInfo
         allocator->Free(allocator, nameRaw);
         /** Create a copy of the borrowed MemoryInfo */
         const char* miName = nullptr;
-        GetApi()->MemoryInfoGetName(memInfos[i], &miName);
+        status = GetApi()->MemoryInfoGetName(memInfos[i], &miName);
+        status.Check();
         OrtAllocatorType miAllocType;
-        GetApi()->MemoryInfoGetType(memInfos[i], &miAllocType);
+        status = GetApi()->MemoryInfoGetType(memInfos[i], &miAllocType);
+        status.Check();
         int miId = 0;
-        GetApi()->MemoryInfoGetId(memInfos[i], &miId);
+        status = GetApi()->MemoryInfoGetId(memInfos[i], &miId);
+        status.Check();
         OrtMemType miMemType;
-        GetApi()->MemoryInfoGetMemType(memInfos[i], &miMemType);
+        status = GetApi()->MemoryInfoGetMemType(memInfos[i], &miMemType);
+        status.Check();
         result.emplace(name, MemoryInfo{ miName ? miName : "Cpu", miAllocType, miId, miMemType });
     }
     return result;
@@ -2303,13 +2319,17 @@ std::unordered_map<std::string, Ortpy::MemoryInfo> Ortpy::Session::GetMemoryInfo
         std::string name{ nameRaw };
         allocator->Free(allocator, nameRaw);
         const char* miName = nullptr;
-        GetApi()->MemoryInfoGetName(memInfos[i], &miName);
+        status = GetApi()->MemoryInfoGetName(memInfos[i], &miName);
+        status.Check();
         OrtAllocatorType miAllocType;
-        GetApi()->MemoryInfoGetType(memInfos[i], &miAllocType);
+        status = GetApi()->MemoryInfoGetType(memInfos[i], &miAllocType);
+        status.Check();
         int miId = 0;
-        GetApi()->MemoryInfoGetId(memInfos[i], &miId);
+        status = GetApi()->MemoryInfoGetId(memInfos[i], &miId);
+        status.Check();
         OrtMemType miMemType;
-        GetApi()->MemoryInfoGetMemType(memInfos[i], &miMemType);
+        status = GetApi()->MemoryInfoGetMemType(memInfos[i], &miMemType);
+        status.Check();
         result.emplace(name, MemoryInfo{ miName ? miName : "Cpu", miAllocType, miId, miMemType });
     }
     return result;

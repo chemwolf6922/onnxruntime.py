@@ -21,3 +21,12 @@ runs:
         cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DPython_ROOT_DIR="${{ inputs.python-root }}"
         cmake --build build
       shell: bash
+
+    - name: List wheel contents
+      run: |
+        for whl in dist/*.whl; do
+          echo "=== $whl ==="
+          ${{ inputs.python-root }}/bin/python -m zipfile -l "$whl"
+          echo
+        done
+      shell: bash
