@@ -31,6 +31,7 @@ jobs:
 
     - name: Test wheels
       run: |
+        Remove-Item -Recurse -Force onnxruntime
         pip install (Get-ChildItem dist/*.whl | Select-Object -ExpandProperty FullName)
         pytest test/ -v
       shell: powershell
@@ -64,6 +65,7 @@ jobs:
 
     - name: Test wheels
       run: |
+        rm -rf onnxruntime
         /opt/python/cp314-cp314/bin/python -m pip install dist/*.whl
         /opt/python/cp314-cp314/bin/python -m pytest test/ -v
       shell: bash
@@ -95,6 +97,7 @@ jobs:
 
     - name: Test wheels
       run: |
+        rm -rf onnxruntime
         pip install dist/*.whl
         pytest test/ -v
       shell: bash

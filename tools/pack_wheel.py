@@ -64,6 +64,36 @@ def get_shared_libs(lib_dir: Path) -> list[Path]:
         raise FileNotFoundError(f"No ONNX Runtime shared libraries found in {lib_dir}")
     return libs
 
+def fix_rpath(native_ext: Path) -> None:
+    """Set the RPATH/LC_RPATH on the native extension so it finds shared libs
+    in the same directory at runtime. This is done after copying the binary
+    into the wheel staging directory so the build-time RPATH (which points
+    to the onnxruntime source tree) is not baked into the distributed wheel."""
+    system = platform.system()
+    if system == "Linux":
+        subprocess.run(
+            ["patchelf", "--set-rpath", "$ORIGIN", str(native_ext)],
+            check=True,
+        )
+    elif system == "Darwin":
+        # Remove any existing rpaths, then add @loader_path
+        result = subprocess.run(
+            ["otool", "-l", str(native_ext)],
+            capture_output=True, text=True, check=True,
+        )
+        for line in result.stdout.splitlines():
+            line = line.strip()
+            if line.startswith("path "):
+                old_rpath = line.split()[1]
+                subprocess.run(
+                    ["install_name_tool", "-delete_rpath", old_rpath, str(native_ext)],
+                    check=True,
+                )
+        subprocess.run(
+            ["install_name_tool", "-add_rpath", "@loader_path", str(native_ext)],
+            check=True,
+        )
+
 def repair_wheel(whl_path: Path) -> None:
     """Repair a wheel in-place using platform-specific tools.
     
@@ -171,6 +201,7 @@ binary_dir = build_dir / args.build_type
 # on single-config generators (Ninja/Make) it's directly under build/.
 ortpy_native_path = find_native_extension([binary_dir, build_dir], "_ortpy")
 shutil.copy(ortpy_native_path, wheel_build_source_dir)
+fix_rpath(wheel_build_source_dir / ortpy_native_path.name)
 ortpy_pyi_path = build_dir / "_ortpy.pyi"
 if not ortpy_pyi_path.exists():
     raise FileNotFoundError("The type stub file is missing")
@@ -204,7 +235,15 @@ wheel_build_source_dir = WHEEL_BUILD_DIR / "ortpy"
 wheel_build_source_dir.mkdir(parents=True, exist_ok=True)
 onnxruntime_lib_path = PROJECT_DIR / "onnxruntime" / "lib"
 for lib_path in get_shared_libs(onnxruntime_lib_path):
-    shutil.copy(lib_path, wheel_build_source_dir)
+    # On Linux, lib names like libfoo.so are symlinks to the SONAME (libfoo.so.1).
+    # Follow one symlink level to get the SONAME as the filename, so the dynamic
+    # linker can find it at runtime. shutil.copy resolves the full chain to get
+    # the actual file content. On macOS/Windows this is typically a no-op.
+    if lib_path.is_symlink():
+        soname = lib_path.parent / Path(lib_path.readlink())
+        shutil.copy(soname.resolve(), wheel_build_source_dir / soname.name)
+    else:
+        shutil.copy(lib_path, wheel_build_source_dir)
 onnxruntime_license_path = PROJECT_DIR / "onnxruntime" / "LICENSE"
 shutil.copy(onnxruntime_license_path, wheel_build_source_dir / "ONNXRUNTIME_LICENSE")
 wheel_build_dist_info_dir = WHEEL_BUILD_DIR / f"ortpy_lib-{get_lib_version()}.dist-info"
