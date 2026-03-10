@@ -77,12 +77,14 @@ def repair_wheel(whl_path: Path) -> None:
         return
 
     if system == "Linux":
-        # Exclude all onnxruntime shared libs — they ship in the ortpy_lib wheel
+        # Exclude all onnxruntime shared libs — they ship in the ortpy_lib wheel.
+        # Must also match versioned names (e.g. libonnxruntime.so.1.24.3) since
+        # auditwheel resolves libraries by SONAME. Include symlinks because the
+        # SONAME (e.g. libonnxruntime.so.1) is typically a symlink.
         ort_lib_dir = Path(__file__).parent.parent / "onnxruntime" / "lib"
         exclude_args = []
-        for lib in ort_lib_dir.glob("*.so"):
-            if not lib.is_symlink():
-                exclude_args += ["--exclude", lib.name]
+        for lib in list(ort_lib_dir.glob("*.so")) + list(ort_lib_dir.glob("*.so.*")):
+            exclude_args += ["--exclude", lib.name]
         tool_cmd = [sys.executable, "-m", "auditwheel", "repair"] + exclude_args
         tool_name = "auditwheel"
     elif system == "Darwin":
