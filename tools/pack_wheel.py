@@ -77,10 +77,22 @@ def repair_wheel(whl_path: Path) -> None:
         return
 
     if system == "Linux":
-        tool_cmd = [sys.executable, "-m", "auditwheel", "repair"]
+        # Exclude all onnxruntime shared libs — they ship in the ortpy_lib wheel
+        ort_lib_dir = Path(__file__).parent.parent / "onnxruntime" / "lib"
+        exclude_args = []
+        for lib in ort_lib_dir.glob("*.so"):
+            if not lib.is_symlink():
+                exclude_args += ["--exclude", lib.name]
+        tool_cmd = [sys.executable, "-m", "auditwheel", "repair"] + exclude_args
         tool_name = "auditwheel"
     elif system == "Darwin":
-        tool_cmd = [sys.executable, "-m", "delocate.cmd.delocate_wheel", "-v"]
+        # Exclude all onnxruntime shared libs — they ship in the ortpy_lib wheel
+        ort_lib_dir = Path(__file__).parent.parent / "onnxruntime" / "lib"
+        exclude_args = []
+        for lib in ort_lib_dir.glob("*.dylib"):
+            if not lib.is_symlink():
+                exclude_args += ["--exclude", lib.name]
+        tool_cmd = [sys.executable, "-m", "delocate.cmd.delocate_wheel", "-v"] + exclude_args
         tool_name = "delocate"
     else:
         return
