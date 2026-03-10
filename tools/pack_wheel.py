@@ -76,7 +76,26 @@ def fix_rpath(native_ext: Path) -> None:
             check=True,
         )
     elif system == "Darwin":
-        # Remove any existing rpaths, then add @loader_path
+        # Rewrite @rpath/libonnxruntime.<version>.dylib references to the
+        # unversioned @rpath/libonnxruntime.dylib so it matches the filename
+        # shipped by the ortpy_lib wheel. Then replace build-time rpaths with
+        # @loader_path so the dynamic linker checks the same directory first,
+        # falling back to DYLD_LIBRARY_PATH and system paths.
+        result = subprocess.run(
+            ["otool", "-L", str(native_ext)],
+            capture_output=True, text=True, check=True,
+        )
+        for line in result.stdout.splitlines():
+            line = line.strip()
+            if "@rpath/" in line and "libonnxruntime" in line:
+                old_ref = line.split()[0]  # e.g. @rpath/libonnxruntime.1.24.3.dylib
+                # Keep @rpath/ prefix but use the unversioned name
+                new_ref = "@rpath/libonnxruntime.dylib"
+                subprocess.run(
+                    ["install_name_tool", "-change", old_ref, new_ref, str(native_ext)],
+                    check=True,
+                )
+        # Remove any existing rpaths (build-time paths) and add @loader_path
         result = subprocess.run(
             ["otool", "-l", str(native_ext)],
             capture_output=True, text=True, check=True,
