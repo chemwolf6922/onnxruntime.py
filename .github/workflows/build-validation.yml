@@ -117,6 +117,7 @@ jobs:
       run: |
         pip uninstall ortpy-lib -y
         brew install onnxruntime
+        export DYLD_LIBRARY_PATH="$(brew --prefix)/lib:${DYLD_LIBRARY_PATH}"
         pytest test/ -v
       shell: bash
 
