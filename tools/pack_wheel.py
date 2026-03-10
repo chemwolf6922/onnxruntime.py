@@ -122,8 +122,7 @@ def repair_wheel(whl_path: Path) -> None:
         ort_lib_dir = Path(__file__).parent.parent / "onnxruntime" / "lib"
         exclude_args = []
         for lib in ort_lib_dir.glob("*.dylib"):
-            if not lib.is_symlink():
-                exclude_args += ["--exclude", lib.name]
+            exclude_args += ["--exclude", lib.name]
         tool_cmd = [sys.executable, "-m", "delocate.cmd.delocate_wheel", "-v"] + exclude_args
         tool_name = "delocate"
     else:
@@ -158,8 +157,9 @@ def repair_wheel(whl_path: Path) -> None:
                 shutil.move(str(r), output_dir / r.name)
             print(f"Repaired: {whl_path.name} -> {', '.join(r.name for r in repaired)}")
 
-def pack_and_repair(wheel_build_dir: Path, output_dir: Path) -> None:
-    """Pack a wheel from the build directory and repair it."""
+def pack_and_repair(wheel_build_dir: Path, output_dir: Path, native_ext_name: str | None = None) -> None:
+    """Pack a wheel from the build directory and repair it.
+    If native_ext_name is provided, fix its RPATH after repair."""
     existing = set(output_dir.glob("*.whl"))
     subprocess.run(
         [sys.executable, "-m", "wheel", "pack", str(wheel_build_dir), "--dest-dir", str(output_dir)],
@@ -168,6 +168,41 @@ def pack_and_repair(wheel_build_dir: Path, output_dir: Path) -> None:
     new_wheels = set(output_dir.glob("*.whl")) - existing
     for whl in new_wheels:
         repair_wheel(whl)
+    # Fix RPATH after repair so the repair tool can still resolve dependencies
+    # using the build-time rpath, and we overwrite it afterward.
+    # Re-scan because repair may rename wheels (e.g. linux -> manylinux).
+    if native_ext_name:
+        repaired_wheels = set(output_dir.glob("*.whl")) - existing
+        for whl in repaired_wheels:
+            _fix_rpath_in_wheel(whl, native_ext_name)
+
+def _fix_rpath_in_wheel(whl_path: Path, native_ext_name: str) -> None:
+    """Unpack a wheel, fix the RPATH on the native extension, and repack."""
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        tmp = Path(tmp_dir)
+        result = subprocess.run(
+            [sys.executable, "-m", "wheel", "unpack", "-d", str(tmp), str(whl_path)],
+            capture_output=True, text=True,
+        )
+        if result.returncode != 0:
+            print(f"wheel unpack failed: {result.stderr}")
+            raise RuntimeError(f"wheel unpack failed for {whl_path.name}:\n{result.stderr}")
+        # wheel unpack creates a subdirectory named <name>-<version>
+        unpacked_dirs = list(tmp.iterdir())
+        if len(unpacked_dirs) != 1:
+            raise RuntimeError(f"Expected one unpacked directory, got {unpacked_dirs}")
+        unpacked = unpacked_dirs[0]
+        # Find and fix the native extension
+        matches = list(unpacked.rglob(f"{native_ext_name}*"))
+        for m in matches:
+            if m.suffix in (".so", ".dylib") or ".so." in m.name or m.name.endswith(".pyd"):
+                fix_rpath(m)
+        # Repack
+        whl_path.unlink()
+        subprocess.run(
+            [sys.executable, "-m", "wheel", "pack", str(unpacked), "--dest-dir", str(whl_path.parent)],
+            check=True,
+        )
 
 parser = ArgumentParser(description="Pack the ortpy and ortpy-lib wheels.")
 parser.add_argument(
@@ -201,7 +236,7 @@ binary_dir = build_dir / args.build_type
 # on single-config generators (Ninja/Make) it's directly under build/.
 ortpy_native_path = find_native_extension([binary_dir, build_dir], "_ortpy")
 shutil.copy(ortpy_native_path, wheel_build_source_dir)
-fix_rpath(wheel_build_source_dir / ortpy_native_path.name)
+
 ortpy_pyi_path = build_dir / "_ortpy.pyi"
 if not ortpy_pyi_path.exists():
     raise FileNotFoundError("The type stub file is missing")
@@ -225,7 +260,7 @@ copy_file_with_replacements(
         "ORTPY_WHEEL_TAG": wheel_tag
     }
 )
-pack_and_repair(WHEEL_BUILD_DIR, WHEEL_OUTPUT_DIR)
+pack_and_repair(WHEEL_BUILD_DIR, WHEEL_OUTPUT_DIR, native_ext_name="_ortpy")
 
 # Pack the ortpy-lib wheel
 
