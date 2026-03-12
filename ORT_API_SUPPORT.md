@@ -175,8 +175,8 @@ Legend:
 | ➖ | ReleaseArenaCfg | Arena configuration not in scope |
 | ✅ | ModelMetadataGetGraphDescription | `ModelMetadata.graph_description` |
 | ➖ | SessionOptionsAppendExecutionProvider_TensorRT | Legacy EP API; use `append_execution_provider()` |
-| ❌ | SetCurrentGpuDeviceId | GPU device management not exposed |
-| ❌ | GetCurrentGpuDeviceId | GPU device management not exposed |
+| ➖ | SetCurrentGpuDeviceId | Superseded by per-EP `device_id` option |
+| ➖ | GetCurrentGpuDeviceId | Superseded by per-EP `device_id` option |
 | ➖ | KernelInfoGetAttributeArray_float | Custom op / kernel info not in scope |
 | ➖ | KernelInfoGetAttributeArray_int64 | Custom op / kernel info not in scope |
 | ➖ | CreateArenaCfgV2 | Arena configuration not in scope |
@@ -193,20 +193,20 @@ Legend:
 | ✅ | EnableOrtCustomOps | `SessionOptions.enable_ort_custom_ops()` |
 | ➖ | RegisterAllocator | Allocator management not in scope |
 | ➖ | UnregisterAllocator | Allocator management not in scope |
-| ❌ | IsSparseTensor | Sparse tensor not in scope |
-| ❌ | CreateSparseTensorAsOrtValue | Sparse tensor not in scope |
-| ❌ | FillSparseTensorCoo | Sparse tensor not in scope |
-| ❌ | FillSparseTensorCsr | Sparse tensor not in scope |
-| ❌ | FillSparseTensorBlockSparse | Sparse tensor not in scope |
-| ❌ | CreateSparseTensorWithValuesAsOrtValue | Sparse tensor not in scope |
-| ❌ | UseCooIndices | Sparse tensor not in scope |
-| ❌ | UseCsrIndices | Sparse tensor not in scope |
-| ❌ | UseBlockSparseIndices | Sparse tensor not in scope |
-| ❌ | GetSparseTensorFormat | Sparse tensor not in scope |
-| ❌ | GetSparseTensorValuesTypeAndShape | Sparse tensor not in scope |
-| ❌ | GetSparseTensorValues | Sparse tensor not in scope |
-| ❌ | GetSparseTensorIndicesTypeShape | Sparse tensor not in scope |
-| ❌ | GetSparseTensorIndices | Sparse tensor not in scope |
+| ✅ | IsSparseTensor | `Value.is_sparse_tensor` |
+| ➖ | CreateSparseTensorAsOrtValue | Allocator-owned path not used; use `from_sparse_*()` |
+| ➖ | FillSparseTensorCoo | Allocator-owned path not used; use `from_sparse_coo()` |
+| ➖ | FillSparseTensorCsr | Allocator-owned path not used; use `from_sparse_csr()` |
+| ➖ | FillSparseTensorBlockSparse | Allocator-owned path not used; use `from_sparse_block()` |
+| ✅ | CreateSparseTensorWithValuesAsOrtValue | Used internally by `Value.from_sparse_*()` |
+| ✅ | UseCooIndices | Used internally by `Value.from_sparse_coo()` |
+| ✅ | UseCsrIndices | Used internally by `Value.from_sparse_csr()` |
+| ✅ | UseBlockSparseIndices | Used internally by `Value.from_sparse_block()` |
+| ✅ | GetSparseTensorFormat | `Value.sparse_format` |
+| ✅ | GetSparseTensorValuesTypeAndShape | Used internally by `Value.get_sparse_data()` |
+| ✅ | GetSparseTensorValues | Used internally by `Value.get_sparse_data()` |
+| ✅ | GetSparseTensorIndicesTypeShape | Used internally by `Value.get_sparse_data()` |
+| ✅ | GetSparseTensorIndices | Used internally by `Value.get_sparse_data()` |
 | ✅ | HasValue | `Value.has_value` |
 | ➖ | KernelContext_GetGPUComputeStream | Custom op / kernel context not in scope |
 | ✅ | GetTensorMemoryInfo | `Value.get_tensor_memory_info()` |

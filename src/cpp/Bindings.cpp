@@ -107,6 +107,12 @@ NB_MODULE(_ortpy, m) {
         .value("FPGA", OrtMemoryInfoDeviceType_FPGA)
         .value("NPU", OrtMemoryInfoDeviceType_NPU);
 
+    nanobind::enum_<OrtSparseFormat>(m, "SparseFormat")
+        .value("UNDEFINED", ORT_SPARSE_UNDEFINED)
+        .value("COO", ORT_SPARSE_COO)
+        .value("CSRC", ORT_SPARSE_CSRC)
+        .value("BLOCK_SPARSE", ORT_SPARSE_BLOCK_SPARSE);
+
     nanobind::class_<Ortpy::ThreadingOptions>(m, "ThreadingOptions")
         .def(nanobind::init<>())
         .def("set_intra_op_num_threads",
@@ -231,7 +237,35 @@ NB_MODULE(_ortpy, m) {
         .def("get_strings", &Ortpy::Value::GetStrings)
         .def("__getitem__", &Ortpy::Value::GetElement,
             nanobind::arg("index"))
-        .def("__len__", &Ortpy::Value::GetCount);
+        .def("__len__", &Ortpy::Value::GetCount)
+        /** Sparse tensor creation */
+        .def_static("from_sparse_coo", &Ortpy::Value::FromSparseCoo,
+            nanobind::arg("dense_shape"),
+            nanobind::arg("values"),
+            nanobind::arg("indices"))
+        .def_static("from_sparse_csr", &Ortpy::Value::FromSparseCsr,
+            nanobind::arg("dense_shape"),
+            nanobind::arg("values"),
+            nanobind::arg("inner_indices"),
+            nanobind::arg("outer_indices"))
+        .def_static("from_sparse_block", &Ortpy::Value::FromSparseBlock,
+            nanobind::arg("dense_shape"),
+            nanobind::arg("values"),
+            nanobind::arg("indices"))
+        /** Sparse tensor query */
+        .def_prop_ro("is_sparse_tensor", &Ortpy::Value::IsSparseTensor)
+        .def_prop_ro("sparse_format", [](const Ortpy::Value& self) -> std::optional<OrtSparseFormat> {
+            if (!self.IsSparseTensor()) return std::nullopt;
+            return self.GetSparseFormat();
+        })
+        .def_prop_ro("sparse_dense_shape", [](const Ortpy::Value& self) -> std::optional<std::vector<int64_t>> {
+            if (!self.IsSparseTensor()) return std::nullopt;
+            return self.GetSparseDenseShape();
+        })
+        .def("get_sparse_values", &Ortpy::Value::GetSparseValues)
+        .def("get_sparse_indices", &Ortpy::Value::GetSparseIndices)
+        .def("get_sparse_inner_indices", &Ortpy::Value::GetSparseInnerIndices)
+        .def("get_sparse_outer_indices", &Ortpy::Value::GetSparseOuterIndices);
 
     nanobind::class_<Ortpy::MemoryInfo>(m, "MemoryInfo")
         .def(nanobind::init<>())

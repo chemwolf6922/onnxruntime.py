@@ -2086,6 +2086,272 @@ size_t Ortpy::Value::GetCount() const
     return count;
 }
 
+/** Sparse tensor creation */
+
+Ortpy::Value Ortpy::Value::FromSparseCoo(
+    const std::vector<int64_t>& denseShape,
+    const NpArray& values,
+    const NpArray& indices)
+{
+    auto ortType = NpTypeToOrtType(values.dtype());
+    std::vector<int64_t> valuesShape;
+    for (size_t i = 0; i < values.ndim(); ++i)
+        valuesShape.push_back(static_cast<int64_t>(values.shape(i)));
+
+    Ortpy::MemoryInfo memInfo{};
+    OrtValue* ortValue = nullptr;
+    Ortpy::Status status = GetApi()->CreateSparseTensorWithValuesAsOrtValue(
+        memInfo,
+        const_cast<void*>(values.data()),
+        denseShape.data(), denseShape.size(),
+        valuesShape.data(), valuesShape.size(),
+        ortType,
+        &ortValue);
+    status.Check();
+
+    status = GetApi()->UseCooIndices(
+        ortValue,
+        const_cast<int64_t*>(static_cast<const int64_t*>(indices.data())),
+        indices.size());
+    if (status.GetErrorCode() != ORT_OK)
+    {
+        GetApi()->ReleaseValue(ortValue);
+        status.Check();
+    }
+
+    Value val{ nullptr };
+    val._state->ortValue = ortValue;
+    val._state->npArray = values;
+    val._state->sparseIndicesOrInner = indices;
+    return val;
+}
+
+Ortpy::Value Ortpy::Value::FromSparseCsr(
+    const std::vector<int64_t>& denseShape,
+    const NpArray& values,
+    const NpArray& innerIndices,
+    const NpArray& outerIndices)
+{
+    auto ortType = NpTypeToOrtType(values.dtype());
+    std::vector<int64_t> valuesShape;
+    for (size_t i = 0; i < values.ndim(); ++i)
+        valuesShape.push_back(static_cast<int64_t>(values.shape(i)));
+
+    Ortpy::MemoryInfo memInfo{};
+    OrtValue* ortValue = nullptr;
+    Ortpy::Status status = GetApi()->CreateSparseTensorWithValuesAsOrtValue(
+        memInfo,
+        const_cast<void*>(values.data()),
+        denseShape.data(), denseShape.size(),
+        valuesShape.data(), valuesShape.size(),
+        ortType,
+        &ortValue);
+    status.Check();
+
+    status = GetApi()->UseCsrIndices(
+        ortValue,
+        const_cast<int64_t*>(static_cast<const int64_t*>(innerIndices.data())),
+        innerIndices.size(),
+        const_cast<int64_t*>(static_cast<const int64_t*>(outerIndices.data())),
+        outerIndices.size());
+    if (status.GetErrorCode() != ORT_OK)
+    {
+        GetApi()->ReleaseValue(ortValue);
+        status.Check();
+    }
+
+    Value val{ nullptr };
+    val._state->ortValue = ortValue;
+    val._state->npArray = values;
+    val._state->sparseIndicesOrInner = innerIndices;
+    val._state->sparseOuterIndices = outerIndices;
+    return val;
+}
+
+Ortpy::Value Ortpy::Value::FromSparseBlock(
+    const std::vector<int64_t>& denseShape,
+    const NpArray& values,
+    const NpArray& indices)
+{
+    auto ortType = NpTypeToOrtType(values.dtype());
+    std::vector<int64_t> valuesShape;
+    for (size_t i = 0; i < values.ndim(); ++i)
+        valuesShape.push_back(static_cast<int64_t>(values.shape(i)));
+
+    Ortpy::MemoryInfo memInfo{};
+    OrtValue* ortValue = nullptr;
+    Ortpy::Status status = GetApi()->CreateSparseTensorWithValuesAsOrtValue(
+        memInfo,
+        const_cast<void*>(values.data()),
+        denseShape.data(), denseShape.size(),
+        valuesShape.data(), valuesShape.size(),
+        ortType,
+        &ortValue);
+    status.Check();
+
+    std::vector<int64_t> indicesShape;
+    for (size_t i = 0; i < indices.ndim(); ++i)
+        indicesShape.push_back(static_cast<int64_t>(indices.shape(i)));
+
+    status = GetApi()->UseBlockSparseIndices(
+        ortValue,
+        indicesShape.data(), indicesShape.size(),
+        const_cast<int32_t*>(static_cast<const int32_t*>(indices.data())));
+    if (status.GetErrorCode() != ORT_OK)
+    {
+        GetApi()->ReleaseValue(ortValue);
+        status.Check();
+    }
+
+    Value val{ nullptr };
+    val._state->ortValue = ortValue;
+    val._state->npArray = values;
+    val._state->sparseIndicesOrInner = indices;
+    return val;
+}
+
+/** Sparse tensor query */
+
+bool Ortpy::Value::IsSparseTensor() const
+{
+    if (_state->ortValue == nullptr) return false;
+    int result = 0;
+    Ortpy::Status status = GetApi()->IsSparseTensor(_state->ortValue, &result);
+    status.Check();
+    return result != 0;
+}
+
+OrtSparseFormat Ortpy::Value::GetSparseFormat() const
+{
+    if (!IsSparseTensor())
+    {
+        throw std::runtime_error("Value is not a sparse tensor");
+    }
+    OrtSparseFormat format;
+    Ortpy::Status status = GetApi()->GetSparseTensorFormat(_state->ortValue, &format);
+    status.Check();
+    return format;
+}
+
+static Ortpy::NpArray MakeNpArrayFromOrtInfo(
+    OrtTensorTypeAndShapeInfo* info,
+    const void* data)
+{
+    ONNXTensorElementDataType elemType;
+    Ortpy::Status status = Ortpy::GetApi()->GetTensorElementType(info, &elemType);
+    status.Check();
+
+    size_t dimCount = 0;
+    status = Ortpy::GetApi()->GetDimensionsCount(info, &dimCount);
+    status.Check();
+    std::vector<int64_t> dims(dimCount);
+    status = Ortpy::GetApi()->GetDimensions(info, dims.data(), dimCount);
+    status.Check();
+
+    auto npType = Ortpy::Value::OrtTypeToNpType(elemType);
+    std::vector<size_t> npShape(dims.begin(), dims.end());
+
+    return Ortpy::NpArray(
+        const_cast<void*>(data),
+        npShape.size(),
+        npShape.data(),
+        nanobind::handle(),
+        nullptr,
+        npType);
+}
+
+std::vector<int64_t> Ortpy::Value::GetSparseDenseShape() const
+{
+    if (!IsSparseTensor())
+        throw std::runtime_error("Value is not a sparse tensor");
+    OrtTensorTypeAndShapeInfo* tensorInfo = nullptr;
+    Ortpy::Status status = GetApi()->GetTensorTypeAndShape(_state->ortValue, &tensorInfo);
+    status.Check();
+    size_t dimCount = 0;
+    status = GetApi()->GetDimensionsCount(tensorInfo, &dimCount);
+    status.Check();
+    std::vector<int64_t> denseShape(dimCount);
+    status = GetApi()->GetDimensions(tensorInfo, denseShape.data(), dimCount);
+    status.Check();
+    GetApi()->ReleaseTensorTypeAndShapeInfo(tensorInfo);
+    return denseShape;
+}
+
+Ortpy::NpArray Ortpy::Value::GetSparseValues() const
+{
+    if (!IsSparseTensor())
+        throw std::runtime_error("Value is not a sparse tensor");
+    OrtTensorTypeAndShapeInfo* valInfo = nullptr;
+    Ortpy::Status status = GetApi()->GetSparseTensorValuesTypeAndShape(_state->ortValue, &valInfo);
+    status.Check();
+    const void* valData = nullptr;
+    status = GetApi()->GetSparseTensorValues(_state->ortValue, &valData);
+    status.Check();
+    auto result = MakeNpArrayFromOrtInfo(valInfo, valData);
+    GetApi()->ReleaseTensorTypeAndShapeInfo(valInfo);
+    return result;
+}
+
+Ortpy::NpArray Ortpy::Value::GetSparseIndices() const
+{
+    auto format = GetSparseFormat();
+    if (format != ORT_SPARSE_COO && format != ORT_SPARSE_BLOCK_SPARSE)
+        throw std::runtime_error("get_sparse_indices() is only valid for COO or block-sparse tensors");
+    OrtSparseIndicesFormat idxFormat = (format == ORT_SPARSE_COO)
+        ? ORT_SPARSE_COO_INDICES
+        : ORT_SPARSE_BLOCK_SPARSE_INDICES;
+    OrtTensorTypeAndShapeInfo* idxInfo = nullptr;
+    Ortpy::Status status = GetApi()->GetSparseTensorIndicesTypeShape(
+        _state->ortValue, idxFormat, &idxInfo);
+    status.Check();
+    const void* idxData = nullptr;
+    size_t numIdx = 0;
+    status = GetApi()->GetSparseTensorIndices(
+        _state->ortValue, idxFormat, &numIdx, &idxData);
+    status.Check();
+    auto result = MakeNpArrayFromOrtInfo(idxInfo, idxData);
+    GetApi()->ReleaseTensorTypeAndShapeInfo(idxInfo);
+    return result;
+}
+
+Ortpy::NpArray Ortpy::Value::GetSparseInnerIndices() const
+{
+    auto format = GetSparseFormat();
+    if (format != ORT_SPARSE_CSRC)
+        throw std::runtime_error("get_sparse_inner_indices() is only valid for CSR tensors");
+    OrtTensorTypeAndShapeInfo* idxInfo = nullptr;
+    Ortpy::Status status = GetApi()->GetSparseTensorIndicesTypeShape(
+        _state->ortValue, ORT_SPARSE_CSR_INNER_INDICES, &idxInfo);
+    status.Check();
+    const void* idxData = nullptr;
+    size_t numIdx = 0;
+    status = GetApi()->GetSparseTensorIndices(
+        _state->ortValue, ORT_SPARSE_CSR_INNER_INDICES, &numIdx, &idxData);
+    status.Check();
+    auto result = MakeNpArrayFromOrtInfo(idxInfo, idxData);
+    GetApi()->ReleaseTensorTypeAndShapeInfo(idxInfo);
+    return result;
+}
+
+Ortpy::NpArray Ortpy::Value::GetSparseOuterIndices() const
+{
+    auto format = GetSparseFormat();
+    if (format != ORT_SPARSE_CSRC)
+        throw std::runtime_error("get_sparse_outer_indices() is only valid for CSR tensors");
+    OrtTensorTypeAndShapeInfo* idxInfo = nullptr;
+    Ortpy::Status status = GetApi()->GetSparseTensorIndicesTypeShape(
+        _state->ortValue, ORT_SPARSE_CSR_OUTER_INDICES, &idxInfo);
+    status.Check();
+    const void* idxData = nullptr;
+    size_t numIdx = 0;
+    status = GetApi()->GetSparseTensorIndices(
+        _state->ortValue, ORT_SPARSE_CSR_OUTER_INDICES, &numIdx, &idxData);
+    status.Check();
+    auto result = MakeNpArrayFromOrtInfo(idxInfo, idxData);
+    GetApi()->ReleaseTensorTypeAndShapeInfo(idxInfo);
+    return result;
+}
+
 ONNXTensorElementDataType Ortpy::Value::GetType() const
 {
     if (_state->ortValue == nullptr)

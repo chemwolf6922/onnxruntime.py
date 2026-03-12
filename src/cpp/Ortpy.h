@@ -435,6 +435,30 @@ namespace Ortpy
         /** Map/Sequence access */
         Value GetElement(int index) const;
         size_t GetCount() const;
+
+        /** Sparse tensor creation */
+        static Value FromSparseCoo(
+            const std::vector<int64_t>& denseShape,
+            const NpArray& values,
+            const NpArray& indices);
+        static Value FromSparseCsr(
+            const std::vector<int64_t>& denseShape,
+            const NpArray& values,
+            const NpArray& innerIndices,
+            const NpArray& outerIndices);
+        static Value FromSparseBlock(
+            const std::vector<int64_t>& denseShape,
+            const NpArray& values,
+            const NpArray& indices);
+
+        /** Sparse tensor query */
+        bool IsSparseTensor() const;
+        OrtSparseFormat GetSparseFormat() const;
+        std::vector<int64_t> GetSparseDenseShape() const;
+        NpArray GetSparseValues() const;
+        NpArray GetSparseIndices() const;
+        NpArray GetSparseInnerIndices() const;
+        NpArray GetSparseOuterIndices() const;
     private:
         struct State
         {
@@ -448,6 +472,9 @@ namespace Ortpy
              * A view / reference to the data if not.
              */
             std::optional<NpArray> npArray { std::nullopt };
+            /** Pinned arrays for sparse tensor index buffers */
+            std::optional<NpArray> sparseIndicesOrInner { std::nullopt };
+            std::optional<NpArray> sparseOuterIndices { std::nullopt };
             State() = default;
             State(const State&) = delete;
             State& operator=(const State&) = delete;
