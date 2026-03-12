@@ -1159,6 +1159,7 @@ void Ortpy::SessionOptions::SetLoadCancellationFlag(bool cancel)
 
 void Ortpy::SessionOptions::AddInitializer(const std::string& name, const Value& value)
 {
+    _initializers.push_back(value);
     Ortpy::Status status = GetApi()->AddInitializer(
         _ptr, name.c_str(), static_cast<OrtValue*>(value));
     status.Check();
@@ -1173,6 +1174,7 @@ void Ortpy::SessionOptions::AddExternalInitializers(
     values.reserve(initializers.size());
     for (const auto& [name, value] : initializers)
     {
+        _initializers.push_back(value);
         names.push_back(name.c_str());
         values.push_back(static_cast<OrtValue*>(value));
     }
@@ -1571,31 +1573,76 @@ void Ortpy::RunOptions::AddActiveLoraAdapter(const LoraAdapter& adapter)
     status.Check();
 }
 
+/** PrepackedWeightsContainer */
+
+void Ortpy::PrepackedWeightsContainer::ReleaseOrtType(OrtPrepackedWeightsContainer* ptr)
+{
+    GetApi()->ReleasePrepackedWeightsContainer(ptr);
+}
+
+Ortpy::PrepackedWeightsContainer::PrepackedWeightsContainer()
+    : OrtTypeWrapper<OrtPrepackedWeightsContainer, PrepackedWeightsContainer>(nullptr)
+{
+    Ortpy::Status status = GetApi()->CreatePrepackedWeightsContainer(&_ptr);
+    status.Check();
+}
+
 /** Session */
 
-Ortpy::Session::Session(const std::string& modelPath, const SessionOptions& options)
+Ortpy::Session::Session(const std::string& modelPath, const SessionOptions& options,
+                         std::shared_ptr<PrepackedWeightsContainer> prepackedWeights)
     : OrtTypeWrapper<OrtSession, Session>(nullptr)
+    , _prepackedWeights(std::move(prepackedWeights))
 {
     OrtSession* session = nullptr;
-    Ortpy::Status status = GetApi()->CreateSession(
-        *Ortpy::Env::GetSingleton(),
-        StringToOrtString(modelPath).c_str(),
-        options,
-        &session);
+    Ortpy::Status status{ nullptr };
+    if (_prepackedWeights)
+    {
+        status = GetApi()->CreateSessionWithPrepackedWeightsContainer(
+            *Ortpy::Env::GetSingleton(),
+            StringToOrtString(modelPath).c_str(),
+            options,
+            *_prepackedWeights,
+            &session);
+    }
+    else
+    {
+        status = GetApi()->CreateSession(
+            *Ortpy::Env::GetSingleton(),
+            StringToOrtString(modelPath).c_str(),
+            options,
+            &session);
+    }
     status.Check();
     _ptr = session;
 }
 
-Ortpy::Session::Session(const nanobind::bytes& modelBytes, const SessionOptions& options)
+Ortpy::Session::Session(const nanobind::bytes& modelBytes, const SessionOptions& options,
+                         std::shared_ptr<PrepackedWeightsContainer> prepackedWeights)
     : OrtTypeWrapper<OrtSession, Session>(nullptr)
+    , _prepackedWeights(std::move(prepackedWeights))
 {
     OrtSession* session = nullptr;
-    Ortpy::Status status = GetApi()->CreateSessionFromArray(
-        *Ortpy::Env::GetSingleton(),
-        modelBytes.data(),
-        modelBytes.size(),
-        options,
-        &session);
+    Ortpy::Status status{ nullptr };
+    if (_prepackedWeights)
+    {
+        status = GetApi()->CreateSessionFromArrayWithPrepackedWeightsContainer(
+            *Ortpy::Env::GetSingleton(),
+            modelBytes.data(),
+            modelBytes.size(),
+            options,
+            *_prepackedWeights,
+            &session);
+    }
+    else
+    {
+        status = GetApi()->CreateSessionFromArray(
+            *Ortpy::Env::GetSingleton(),
+            modelBytes.data(),
+            modelBytes.size(),
+            options,
+            &session);
+    }
     status.Check();
     _ptr = session;
 }

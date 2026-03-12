@@ -274,6 +274,7 @@ namespace Ortpy
     private:
         EpSelectionPolicyDelegate _delegate { nullptr };
         LoggingFunction _loggingFunction { nullptr };
+        std::vector<Value> _initializers;
     };
 
     class TypeInfo : public OrtTypeWrapper<OrtTypeInfo, TypeInfo>
@@ -356,12 +357,21 @@ namespace Ortpy
     };
 #endif /** ORT_API_VERSION >= 24 */
 
+    class PrepackedWeightsContainer : public OrtTypeWrapper<OrtPrepackedWeightsContainer, PrepackedWeightsContainer>
+    {
+    public:
+        static void ReleaseOrtType(OrtPrepackedWeightsContainer* ptr);
+        PrepackedWeightsContainer();
+    };
+
     class Session : public OrtTypeWrapper<OrtSession, Session>
     {
     public:
         static void ReleaseOrtType(OrtSession* ptr);
-        Session(const std::string& modelPath, const SessionOptions& options);
-        Session(const nanobind::bytes& modelBytes, const SessionOptions& options);
+        Session(const std::string& modelPath, const SessionOptions& options,
+                std::shared_ptr<PrepackedWeightsContainer> prepackedWeights = nullptr);
+        Session(const nanobind::bytes& modelBytes, const SessionOptions& options,
+                std::shared_ptr<PrepackedWeightsContainer> prepackedWeights = nullptr);
 
         std::unordered_map<std::string, TypeInfo> GetInputInfo() const;
         std::unordered_map<std::string, TypeInfo> GetOutputInfo() const;
@@ -386,6 +396,8 @@ namespace Ortpy
             const std::unordered_map<std::string, Value>& inputs,
             const std::optional<std::vector<std::string>>& outputNames = std::nullopt,
             const RunOptions* runOptions = nullptr) const;
+    private:
+        std::shared_ptr<PrepackedWeightsContainer> _prepackedWeights;
     };
 
     class Value

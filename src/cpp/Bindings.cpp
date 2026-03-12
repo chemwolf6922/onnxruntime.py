@@ -6,6 +6,7 @@
 #include <nanobind/stl/unordered_map.h>
 #include <nanobind/stl/optional.h>
 #include <nanobind/stl/function.h>
+#include <nanobind/stl/shared_ptr.h>
 #include <memory>
 #include <optional>
 
@@ -371,8 +372,7 @@ NB_MODULE(_ortpy, m) {
         .def("add_initializer",
             &Ortpy::SessionOptions::AddInitializer,
             nanobind::arg("name"),
-            nanobind::arg("value"),
-            nanobind::keep_alive<1, 3>())
+            nanobind::arg("value"))
         .def("add_external_initializers",
             &Ortpy::SessionOptions::AddExternalInitializers,
             nanobind::arg("initializers"))
@@ -450,13 +450,18 @@ NB_MODULE(_ortpy, m) {
             &Ortpy::RunOptions::AddActiveLoraAdapter,
             nanobind::arg("adapter"));
 
+    nanobind::class_<Ortpy::PrepackedWeightsContainer>(m, "PrepackedWeightsContainer")
+        .def(nanobind::init<>());
+
     nanobind::class_<Ortpy::Session>(m, "Session")
-        .def(nanobind::init<const std::string&, const Ortpy::SessionOptions&>(),
+        .def(nanobind::init<const std::string&, const Ortpy::SessionOptions&, std::shared_ptr<Ortpy::PrepackedWeightsContainer>>(),
             nanobind::arg("model_path"),
-            nanobind::arg("options"))
-        .def(nanobind::init<const nanobind::bytes&, const Ortpy::SessionOptions&>(),
+            nanobind::arg("options"),
+            nanobind::arg("prepacked_weights") = nullptr)
+        .def(nanobind::init<const nanobind::bytes&, const Ortpy::SessionOptions&, std::shared_ptr<Ortpy::PrepackedWeightsContainer>>(),
             nanobind::arg("model_bytes"),
-            nanobind::arg("options"))
+            nanobind::arg("options"),
+            nanobind::arg("prepacked_weights") = nullptr)
         .def("get_input_info", &Ortpy::Session::GetInputInfo)
         .def("get_output_info", &Ortpy::Session::GetOutputInfo)
         .def("get_overridable_initializer_info", &Ortpy::Session::GetOverridableInitializerInfo)

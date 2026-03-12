@@ -219,3 +219,44 @@ class TestSessionFromBytes:
         b = np.array([30.0, 40.0], dtype=np.float32)
         outputs = session.run({"A": a, "B": b})
         np.testing.assert_allclose(outputs["C"].numpy(), [40.0, 60.0])
+
+
+# ---------------------------------------------------------------------------
+# PrepackedWeightsContainer
+# ---------------------------------------------------------------------------
+
+class TestPrepackedWeightsContainer:
+    def test_create(self):
+        container = ort.PrepackedWeightsContainer()
+        assert container is not None
+
+    def test_session_with_prepacked_weights_from_path(self, add_model_path):
+        container = ort.PrepackedWeightsContainer()
+        session = ort.Session(str(add_model_path), ort.SessionOptions(),
+                              prepacked_weights=container)
+        a = np.array([1.0, 2.0], dtype=np.float32)
+        b = np.array([3.0, 4.0], dtype=np.float32)
+        outputs = session.run({"A": a, "B": b})
+        np.testing.assert_allclose(outputs["C"].numpy(), [4.0, 6.0])
+
+    def test_session_with_prepacked_weights_from_bytes(self, add_model_bytes):
+        container = ort.PrepackedWeightsContainer()
+        session = ort.Session(add_model_bytes, ort.SessionOptions(),
+                              prepacked_weights=container)
+        a = np.array([1.0, 2.0], dtype=np.float32)
+        b = np.array([3.0, 4.0], dtype=np.float32)
+        outputs = session.run({"A": a, "B": b})
+        np.testing.assert_allclose(outputs["C"].numpy(), [4.0, 6.0])
+
+    def test_shared_container_across_sessions(self, add_model_path):
+        container = ort.PrepackedWeightsContainer()
+        s1 = ort.Session(str(add_model_path), ort.SessionOptions(),
+                         prepacked_weights=container)
+        s2 = ort.Session(str(add_model_path), ort.SessionOptions(),
+                         prepacked_weights=container)
+        a = np.array([1.0, 2.0], dtype=np.float32)
+        b = np.array([3.0, 4.0], dtype=np.float32)
+        np.testing.assert_allclose(
+            s1.run({"A": a, "B": b})["C"].numpy(), [4.0, 6.0])
+        np.testing.assert_allclose(
+            s2.run({"A": a, "B": b})["C"].numpy(), [4.0, 6.0])

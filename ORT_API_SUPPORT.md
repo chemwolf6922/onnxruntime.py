@@ -181,10 +181,10 @@ Legend:
 | ➖ | KernelInfoGetAttributeArray_int64 | Custom op / kernel info not in scope |
 | ➖ | CreateArenaCfgV2 | Arena configuration not in scope |
 | ✅ | AddRunConfigEntry | `RunOptions.add_run_config_entry()` |
-| ❌ | CreatePrepackedWeightsContainer | Prepacked weights not exposed |
-| ❌ | ReleasePrepackedWeightsContainer | Prepacked weights not exposed |
-| ❌ | CreateSessionWithPrepackedWeightsContainer | Prepacked weights not exposed |
-| ❌ | CreateSessionFromArrayWithPrepackedWeightsContainer | Prepacked weights not exposed |
+| ✅ | CreatePrepackedWeightsContainer | `PrepackedWeightsContainer()` |
+| ✅ | ReleasePrepackedWeightsContainer | `PrepackedWeightsContainer` destructor (via RAII) |
+| ✅ | CreateSessionWithPrepackedWeightsContainer | `Session(model_path, options, prepacked_weights=...)` |
+| ✅ | CreateSessionFromArrayWithPrepackedWeightsContainer | `Session(model_bytes, options, prepacked_weights=...)` |
 | ➖ | SessionOptionsAppendExecutionProvider_TensorRT_V2 | Legacy EP API; use `append_execution_provider()` |
 | ➖ | CreateTensorRTProviderOptions | Legacy EP API; use `append_execution_provider()` |
 | ➖ | UpdateTensorRTProviderOptions | Legacy EP API; use `append_execution_provider()` |
@@ -242,11 +242,11 @@ Legend:
 | | API | Detail |
 |---|---|---|
 | ✅ | AddExternalInitializers | `SessionOptions.add_external_initializers()` |
-| ❌ | CreateOpAttr | Op invocation not in scope |
-| ❌ | ReleaseOpAttr | Op invocation not in scope |
-| ❌ | CreateOp | Op invocation not in scope |
-| ❌ | InvokeOp | Op invocation not in scope |
-| ❌ | ReleaseOp | Op invocation not in scope |
+| ➖ | CreateOpAttr | Custom op / op invocation not in scope |
+| ➖ | ReleaseOpAttr | Custom op / op invocation not in scope |
+| ➖ | CreateOp | Custom op / op invocation not in scope |
+| ➖ | InvokeOp | Custom op / op invocation not in scope |
+| ➖ | ReleaseOp | Custom op / op invocation not in scope |
 | ✅ | SessionOptionsAppendExecutionProvider | `SessionOptions.append_execution_provider()` |
 | ➖ | CopyKernelInfo | Custom op / kernel info not in scope |
 | ➖ | ReleaseKernelInfo | Custom op / kernel info not in scope |
@@ -292,8 +292,8 @@ Legend:
 | ➖ | KernelInfo_GetNodeName | Custom op / kernel info not in scope |
 | ➖ | KernelInfo_GetLogger | Custom op / kernel info not in scope |
 | ➖ | KernelContext_GetLogger | Custom op / kernel context not in scope |
-| ❌ | Logger_LogMessage | Logger API not exposed |
-| ❌ | Logger_GetLoggingSeverityLevel | Logger API not exposed |
+| ➖ | Logger_LogMessage | Custom op logger not in scope |
+| ➖ | Logger_GetLoggingSeverityLevel | Custom op logger not in scope |
 | ➖ | KernelInfoGetConstantInput_tensor | Custom op / kernel info not in scope |
 | ✅ | CastTypeInfoToOptionalTypeInfo | Used internally by `TypeInfo.optional_contained_type` |
 | ✅ | GetOptionalContainedTypeInfo | `TypeInfo.optional_contained_type` |
@@ -324,7 +324,7 @@ Legend:
 | ❌ | ShapeInferContext_GetAttribute | Shape inference not in scope |
 | ❌ | ShapeInferContext_SetOutputTypeShape | Shape inference not in scope |
 | ❌ | SetSymbolicDimensions | Standalone creation not exposed |
-| ❌ | ReadOpAttr | Op invocation not in scope |
+| ➖ | ReadOpAttr | Custom op / op invocation not in scope |
 | ✅ | SetDeterministicCompute | `SessionOptions.set_deterministic_compute()` |
 | ➖ | KernelContext_ParallelFor | Custom op / kernel context not in scope |
 | ➖ | SessionOptionsAppendExecutionProvider_OpenVINO_V2 | Legacy EP API; use `append_execution_provider()` |
