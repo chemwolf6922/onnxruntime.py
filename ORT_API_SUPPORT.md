@@ -83,7 +83,7 @@ Legend:
 | ✅ | GetTensorTypeAndShape | Used internally by `Value.GetType()`, `Value.GetShape()` |
 | ✅ | GetTypeInfo | Used internally by `Session.get_*_info()` |
 | ✅ | GetValueType | `Value.value_type` |
-| ✅ | CreateMemoryInfo | `MemoryInfo(name, allocator_type, device_id, mem_type)` |
+| ✅ | CreateMemoryInfo | `MemoryInfo.create(name, allocator_type, device_id, mem_type)` |
 | ✅ | CreateCpuMemoryInfo | `MemoryInfo()` (default constructor) |
 | ✅ | CompareMemoryInfo | `MemoryInfo.__eq__()` |
 | ✅ | MemoryInfoGetName | `MemoryInfo.name` |
@@ -319,11 +319,11 @@ Legend:
 | | API | Detail |
 |---|---|---|
 | ✅ | SetUserLoggingFunction | `SessionOptions.set_user_logging_function()` |
-| ❌ | ShapeInferContext_GetInputCount | Shape inference not in scope |
-| ❌ | ShapeInferContext_GetInputTypeShape | Shape inference not in scope |
-| ❌ | ShapeInferContext_GetAttribute | Shape inference not in scope |
-| ❌ | ShapeInferContext_SetOutputTypeShape | Shape inference not in scope |
-| ❌ | SetSymbolicDimensions | Standalone creation not exposed |
+| ➖ | ShapeInferContext_GetInputCount | Custom op shape inference not in scope |
+| ➖ | ShapeInferContext_GetInputTypeShape | Custom op shape inference not in scope |
+| ➖ | ShapeInferContext_GetAttribute | Custom op shape inference not in scope |
+| ➖ | ShapeInferContext_SetOutputTypeShape | Custom op shape inference not in scope |
+| ➖ | SetSymbolicDimensions | Custom op shape inference not in scope |
 | ➖ | ReadOpAttr | Custom op / op invocation not in scope |
 | ✅ | SetDeterministicCompute | `SessionOptions.set_deterministic_compute()` |
 | ➖ | KernelContext_ParallelFor | Custom op / kernel context not in scope |
@@ -351,14 +351,14 @@ Legend:
 
 | | API | Detail |
 |---|---|---|
-| ❌ | ReleaseValueInfo | Graph inspection not in scope |
-| ❌ | ReleaseNode | Graph inspection not in scope |
-| ❌ | ReleaseGraph | Graph inspection not in scope |
-| ❌ | ReleaseModel | Graph inspection not in scope |
-| ❌ | GetValueInfoName | Graph inspection not in scope |
-| ❌ | GetValueInfoTypeInfo | Graph inspection not in scope |
-| ❌ | GetModelEditorApi | Model editor not in scope |
-| ❌ | CreateTensorWithDataAndDeleterAsOrtValue | Custom deleter tensors not exposed |
+| ➖ | ReleaseValueInfo | EP graph inspection API; not in scope |
+| ➖ | ReleaseNode | EP graph inspection API; not in scope |
+| ➖ | ReleaseGraph | EP graph inspection API; not in scope |
+| ➖ | ReleaseModel | EP graph inspection API; not in scope |
+| ➖ | GetValueInfoName | EP graph inspection API; not in scope |
+| ➖ | GetValueInfoTypeInfo | EP graph inspection API; not in scope |
+| ➖ | GetModelEditorApi | Model editor not in scope |
+| ➖ | CreateTensorWithDataAndDeleterAsOrtValue | Custom deleter tensors not exposed |
 | ✅ | SessionOptionsSetLoadCancellationFlag | `SessionOptions.set_load_cancellation_flag()` |
 | ✅ | GetCompileApi | Used internally by `ModelCompilationOptions` |
 | ✅ | CreateKeyValuePairs | Used internally by EP registration helpers |
@@ -391,59 +391,59 @@ Legend:
 |---|---|---|
 | ✅ | GetTensorSizeInBytes | `Value.get_tensor_size_in_bytes()` |
 | ➖ | AllocatorGetStats | Allocator management not in scope |
-| ❌ | CreateMemoryInfo_V2 | V2 memory info creation not exposed |
-| ❌ | MemoryInfoGetDeviceMemType | Not exposed |
-| ❌ | MemoryInfoGetVendorId | Not exposed |
-| ❌ | ValueInfo_GetValueProducer | Graph inspection not in scope |
-| ❌ | ValueInfo_GetValueNumConsumers | Graph inspection not in scope |
-| ❌ | ValueInfo_GetValueConsumers | Graph inspection not in scope |
-| ❌ | ValueInfo_GetInitializerValue | Graph inspection not in scope |
-| ❌ | ValueInfo_GetExternalInitializerInfo | Graph inspection not in scope |
-| ❌ | ValueInfo_IsRequiredGraphInput | Graph inspection not in scope |
-| ❌ | ValueInfo_IsOptionalGraphInput | Graph inspection not in scope |
-| ❌ | ValueInfo_IsGraphOutput | Graph inspection not in scope |
-| ❌ | ValueInfo_IsConstantInitializer | Graph inspection not in scope |
-| ❌ | ValueInfo_IsFromOuterScope | Graph inspection not in scope |
-| ❌ | Graph_GetName | Graph inspection not in scope |
-| ❌ | Graph_GetModelPath | Graph inspection not in scope |
-| ❌ | Graph_GetOnnxIRVersion | Graph inspection not in scope |
-| ❌ | Graph_GetNumOperatorSets | Graph inspection not in scope |
-| ❌ | Graph_GetOperatorSets | Graph inspection not in scope |
-| ❌ | Graph_GetNumInputs | Graph inspection not in scope |
-| ❌ | Graph_GetInputs | Graph inspection not in scope |
-| ❌ | Graph_GetNumOutputs | Graph inspection not in scope |
-| ❌ | Graph_GetOutputs | Graph inspection not in scope |
-| ❌ | Graph_GetNumInitializers | Graph inspection not in scope |
-| ❌ | Graph_GetInitializers | Graph inspection not in scope |
-| ❌ | Graph_GetNumNodes | Graph inspection not in scope |
-| ❌ | Graph_GetNodes | Graph inspection not in scope |
-| ❌ | Graph_GetParentNode | Graph inspection not in scope |
-| ❌ | Graph_GetGraphView | Graph inspection not in scope |
-| ❌ | Node_GetId | Graph inspection not in scope |
-| ❌ | Node_GetName | Graph inspection not in scope |
-| ❌ | Node_GetOperatorType | Graph inspection not in scope |
-| ❌ | Node_GetDomain | Graph inspection not in scope |
-| ❌ | Node_GetSinceVersion | Graph inspection not in scope |
-| ❌ | Node_GetNumInputs | Graph inspection not in scope |
-| ❌ | Node_GetInputs | Graph inspection not in scope |
-| ❌ | Node_GetNumOutputs | Graph inspection not in scope |
-| ❌ | Node_GetOutputs | Graph inspection not in scope |
-| ❌ | Node_GetNumImplicitInputs | Graph inspection not in scope |
-| ❌ | Node_GetImplicitInputs | Graph inspection not in scope |
-| ❌ | Node_GetNumAttributes | Graph inspection not in scope |
-| ❌ | Node_GetAttributes | Graph inspection not in scope |
-| ❌ | Node_GetAttributeByName | Graph inspection not in scope |
-| ❌ | OpAttr_GetTensorAttributeAsOrtValue | Graph inspection not in scope |
-| ❌ | OpAttr_GetType | Graph inspection not in scope |
-| ❌ | OpAttr_GetName | Graph inspection not in scope |
-| ❌ | Node_GetNumSubgraphs | Graph inspection not in scope |
-| ❌ | Node_GetSubgraphs | Graph inspection not in scope |
-| ❌ | Node_GetGraph | Graph inspection not in scope |
-| ❌ | Node_GetEpName | Graph inspection not in scope |
-| ❌ | ReleaseExternalInitializerInfo | Graph inspection not in scope |
-| ❌ | ExternalInitializerInfo_GetFilePath | Graph inspection not in scope |
-| ❌ | ExternalInitializerInfo_GetFileOffset | Graph inspection not in scope |
-| ❌ | ExternalInitializerInfo_GetByteSize | Graph inspection not in scope |
+| ✅ | CreateMemoryInfo_V2 | `MemoryInfo.create_v2(name, device_type, vendor_id, device_id, device_mem_type, alignment, allocator_type)` |
+| ✅ | MemoryInfoGetDeviceMemType | `MemoryInfo.device_mem_type` |
+| ✅ | MemoryInfoGetVendorId | `MemoryInfo.vendor_id` |
+| ➖ | ValueInfo_GetValueProducer | EP graph inspection API; not in scope |
+| ➖ | ValueInfo_GetValueNumConsumers | EP graph inspection API; not in scope |
+| ➖ | ValueInfo_GetValueConsumers | EP graph inspection API; not in scope |
+| ➖ | ValueInfo_GetInitializerValue | EP graph inspection API; not in scope |
+| ➖ | ValueInfo_GetExternalInitializerInfo | EP graph inspection API; not in scope |
+| ➖ | ValueInfo_IsRequiredGraphInput | EP graph inspection API; not in scope |
+| ➖ | ValueInfo_IsOptionalGraphInput | EP graph inspection API; not in scope |
+| ➖ | ValueInfo_IsGraphOutput | EP graph inspection API; not in scope |
+| ➖ | ValueInfo_IsConstantInitializer | EP graph inspection API; not in scope |
+| ➖ | ValueInfo_IsFromOuterScope | EP graph inspection API; not in scope |
+| ➖ | Graph_GetName | EP graph inspection API; not in scope |
+| ➖ | Graph_GetModelPath | EP graph inspection API; not in scope |
+| ➖ | Graph_GetOnnxIRVersion | EP graph inspection API; not in scope |
+| ➖ | Graph_GetNumOperatorSets | EP graph inspection API; not in scope |
+| ➖ | Graph_GetOperatorSets | EP graph inspection API; not in scope |
+| ➖ | Graph_GetNumInputs | EP graph inspection API; not in scope |
+| ➖ | Graph_GetInputs | EP graph inspection API; not in scope |
+| ➖ | Graph_GetNumOutputs | EP graph inspection API; not in scope |
+| ➖ | Graph_GetOutputs | EP graph inspection API; not in scope |
+| ➖ | Graph_GetNumInitializers | EP graph inspection API; not in scope |
+| ➖ | Graph_GetInitializers | EP graph inspection API; not in scope |
+| ➖ | Graph_GetNumNodes | EP graph inspection API; not in scope |
+| ➖ | Graph_GetNodes | EP graph inspection API; not in scope |
+| ➖ | Graph_GetParentNode | EP graph inspection API; not in scope |
+| ➖ | Graph_GetGraphView | EP graph inspection API; not in scope |
+| ➖ | Node_GetId | EP graph inspection API; not in scope |
+| ➖ | Node_GetName | EP graph inspection API; not in scope |
+| ➖ | Node_GetOperatorType | EP graph inspection API; not in scope |
+| ➖ | Node_GetDomain | EP graph inspection API; not in scope |
+| ➖ | Node_GetSinceVersion | EP graph inspection API; not in scope |
+| ➖ | Node_GetNumInputs | EP graph inspection API; not in scope |
+| ➖ | Node_GetInputs | EP graph inspection API; not in scope |
+| ➖ | Node_GetNumOutputs | EP graph inspection API; not in scope |
+| ➖ | Node_GetOutputs | EP graph inspection API; not in scope |
+| ➖ | Node_GetNumImplicitInputs | EP graph inspection API; not in scope |
+| ➖ | Node_GetImplicitInputs | EP graph inspection API; not in scope |
+| ➖ | Node_GetNumAttributes | EP graph inspection API; not in scope |
+| ➖ | Node_GetAttributes | EP graph inspection API; not in scope |
+| ➖ | Node_GetAttributeByName | EP graph inspection API; not in scope |
+| ➖ | OpAttr_GetTensorAttributeAsOrtValue | EP graph inspection API; not in scope |
+| ➖ | OpAttr_GetType | EP graph inspection API; not in scope |
+| ➖ | OpAttr_GetName | EP graph inspection API; not in scope |
+| ➖ | Node_GetNumSubgraphs | EP graph inspection API; not in scope |
+| ➖ | Node_GetSubgraphs | EP graph inspection API; not in scope |
+| ➖ | Node_GetGraph | EP graph inspection API; not in scope |
+| ➖ | Node_GetEpName | EP graph inspection API; not in scope |
+| ➖ | ReleaseExternalInitializerInfo | EP graph inspection API; not in scope |
+| ➖ | ExternalInitializerInfo_GetFilePath | EP graph inspection API; not in scope |
+| ➖ | ExternalInitializerInfo_GetFileOffset | EP graph inspection API; not in scope |
+| ➖ | ExternalInitializerInfo_GetByteSize | EP graph inspection API; not in scope |
 | ✅ | GetRunConfigEntry | `RunOptions.get_run_config_entry()` |
 | ✅ | EpDevice_MemoryInfo | `EpDevice.get_memory_info()` |
 | ➖ | CreateSharedAllocator | Allocator management not in scope |
@@ -457,9 +457,9 @@ Legend:
 | ❌ | CreateSyncStreamForEpDevice | SyncStream not exposed |
 | ❌ | SyncStream_GetHandle | SyncStream not exposed |
 | ❌ | CopyTensors | Tensor copy not exposed |
-| ❌ | Graph_GetModelMetadata | Graph inspection not in scope |
+| ➖ | Graph_GetModelMetadata | EP graph inspection API; not in scope |
 | ✅ | GetModelCompatibilityForEpDevices | `ortpy.get_model_compatibility_for_ep_devices()` |
-| ❌ | CreateExternalInitializerInfo | Graph inspection not in scope |
+| ➖ | CreateExternalInitializerInfo | EP graph inspection API; not in scope |
 
 ## OrtApi — Version 1.24
 

@@ -207,7 +207,7 @@ std::optional<Ortpy::MemoryInfo> Ortpy::EpDevice::GetMemoryInfo(OrtDeviceMemoryT
     OrtMemType memType;
     status = GetApi()->MemoryInfoGetMemType(mi, &memType);
     status.Check();
-    return MemoryInfo{ name ? name : "Cpu", allocType, id, memType };
+    return MemoryInfo::Create(name ? name : "Cpu", allocType, id, memType);
 }
 
 /** Status */
@@ -1985,7 +1985,7 @@ std::optional<Ortpy::MemoryInfo> Ortpy::Value::GetTensorMemoryInfo() const
     OrtMemType memType;
     status = GetApi()->MemoryInfoGetMemType(mi, &memType);
     status.Check();
-    return MemoryInfo{ name ? name : "Cpu", allocType, id, memType };
+    return MemoryInfo::Create(name ? name : "Cpu", allocType, id, memType);
 }
 
 size_t Ortpy::Value::GetTensorSizeInBytes() const
@@ -2584,13 +2584,26 @@ Ortpy::MemoryInfo::MemoryInfo()
     status.Check();
 }
 
-Ortpy::MemoryInfo::MemoryInfo(const std::string& name, OrtAllocatorType allocatorType,
+Ortpy::MemoryInfo Ortpy::MemoryInfo::Create(const std::string& name, OrtAllocatorType allocatorType,
                                int deviceId, OrtMemType memType)
-    : OrtTypeWrapper<OrtMemoryInfo, MemoryInfo>(nullptr)
 {
+    OrtMemoryInfo* ptr = nullptr;
     Ortpy::Status status = GetApi()->CreateMemoryInfo(
-        name.c_str(), allocatorType, deviceId, memType, &_ptr);
+        name.c_str(), allocatorType, deviceId, memType, &ptr);
     status.Check();
+    return MemoryInfo{ ptr };
+}
+
+Ortpy::MemoryInfo Ortpy::MemoryInfo::CreateV2(const std::string& name, OrtMemoryInfoDeviceType deviceType,
+                                               uint32_t vendorId, int32_t deviceId,
+                                               OrtDeviceMemoryType deviceMemType, size_t alignment,
+                                               OrtAllocatorType allocatorType)
+{
+    OrtMemoryInfo* ptr = nullptr;
+    Ortpy::Status status = GetApi()->CreateMemoryInfo_V2(
+        name.c_str(), deviceType, vendorId, deviceId, deviceMemType, alignment, allocatorType, &ptr);
+    status.Check();
+    return MemoryInfo{ ptr };
 }
 
 std::string Ortpy::MemoryInfo::GetName() const
@@ -2630,6 +2643,16 @@ OrtMemoryInfoDeviceType Ortpy::MemoryInfo::GetDeviceType() const
     OrtMemoryInfoDeviceType type;
     GetApi()->MemoryInfoGetDeviceType(_ptr, &type);
     return type;
+}
+
+OrtDeviceMemoryType Ortpy::MemoryInfo::GetDeviceMemType() const
+{
+    return GetApi()->MemoryInfoGetDeviceMemType(_ptr);
+}
+
+uint32_t Ortpy::MemoryInfo::GetVendorId() const
+{
+    return GetApi()->MemoryInfoGetVendorId(_ptr);
 }
 
 bool Ortpy::MemoryInfo::operator==(const MemoryInfo& other) const
@@ -2789,7 +2812,7 @@ std::unordered_map<std::string, Ortpy::MemoryInfo> Ortpy::Session::GetMemoryInfo
         OrtMemType miMemType;
         status = GetApi()->MemoryInfoGetMemType(memInfos[i], &miMemType);
         status.Check();
-        result.emplace(name, MemoryInfo{ miName ? miName : "Cpu", miAllocType, miId, miMemType });
+        result.emplace(name, MemoryInfo::Create(miName ? miName : "Cpu", miAllocType, miId, miMemType));
     }
     return result;
 }
@@ -2823,7 +2846,7 @@ std::unordered_map<std::string, Ortpy::MemoryInfo> Ortpy::Session::GetMemoryInfo
         OrtMemType miMemType;
         status = GetApi()->MemoryInfoGetMemType(memInfos[i], &miMemType);
         status.Check();
-        result.emplace(name, MemoryInfo{ miName ? miName : "Cpu", miAllocType, miId, miMemType });
+        result.emplace(name, MemoryInfo::Create(miName ? miName : "Cpu", miAllocType, miId, miMemType));
     }
     return result;
 }

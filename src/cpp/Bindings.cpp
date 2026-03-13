@@ -269,16 +269,26 @@ NB_MODULE(_ortpy, m) {
 
     nanobind::class_<Ortpy::MemoryInfo>(m, "MemoryInfo")
         .def(nanobind::init<>())
-        .def(nanobind::init<const std::string&, OrtAllocatorType, int, OrtMemType>(),
+        .def_static("create", &Ortpy::MemoryInfo::Create,
             nanobind::arg("name"),
             nanobind::arg("allocator_type"),
             nanobind::arg("device_id"),
             nanobind::arg("mem_type"))
+        .def_static("create_v2", &Ortpy::MemoryInfo::CreateV2,
+            nanobind::arg("name"),
+            nanobind::arg("device_type"),
+            nanobind::arg("vendor_id"),
+            nanobind::arg("device_id"),
+            nanobind::arg("device_mem_type"),
+            nanobind::arg("alignment"),
+            nanobind::arg("allocator_type"))
         .def_prop_ro("name", &Ortpy::MemoryInfo::GetName)
         .def_prop_ro("device_id", &Ortpy::MemoryInfo::GetDeviceId)
         .def_prop_ro("mem_type", &Ortpy::MemoryInfo::GetMemType)
         .def_prop_ro("allocator_type", &Ortpy::MemoryInfo::GetAllocatorType)
         .def_prop_ro("device_type", &Ortpy::MemoryInfo::GetDeviceType)
+        .def_prop_ro("device_mem_type", &Ortpy::MemoryInfo::GetDeviceMemType)
+        .def_prop_ro("vendor_id", &Ortpy::MemoryInfo::GetVendorId)
         .def("__eq__", &Ortpy::MemoryInfo::operator==);
 
     nanobind::class_<Ortpy::IoBinding>(m, "IoBinding")

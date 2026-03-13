@@ -489,14 +489,21 @@ namespace Ortpy
     {
     public:
         static void ReleaseOrtType(OrtMemoryInfo* ptr);
+        using OrtTypeWrapper::OrtTypeWrapper;
         MemoryInfo();
-        MemoryInfo(const std::string& name, OrtAllocatorType allocatorType,
-                   int deviceId, OrtMemType memType);
+        static MemoryInfo Create(const std::string& name, OrtAllocatorType allocatorType,
+                                 int deviceId, OrtMemType memType);
+        static MemoryInfo CreateV2(const std::string& name, OrtMemoryInfoDeviceType deviceType,
+                                   uint32_t vendorId, int32_t deviceId,
+                                   OrtDeviceMemoryType deviceMemType, size_t alignment,
+                                   OrtAllocatorType allocatorType);
         std::string GetName() const;
         int GetDeviceId() const;
         OrtMemType GetMemType() const;
         OrtAllocatorType GetAllocatorType() const;
         OrtMemoryInfoDeviceType GetDeviceType() const;
+        OrtDeviceMemoryType GetDeviceMemType() const;
+        uint32_t GetVendorId() const;
         bool operator==(const MemoryInfo& other) const;
     };
 
