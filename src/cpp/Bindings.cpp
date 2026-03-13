@@ -144,7 +144,10 @@ NB_MODULE(_ortpy, m) {
         .def_ro("device", &Ortpy::EpDevice::device)
         .def("get_memory_info",
             &Ortpy::EpDevice::GetMemoryInfo,
-            nanobind::arg("memory_type"));
+            nanobind::arg("memory_type"))
+        .def("create_sync_stream",
+            &Ortpy::EpDevice::CreateSyncStream,
+            nanobind::arg("options") = std::nullopt);
 
 #if ORT_API_VERSION >= 24
     nanobind::class_<Ortpy::EpAssignedNode>(m, "EpAssignedNode")
@@ -222,6 +225,10 @@ NB_MODULE(_ortpy, m) {
         .def_static("from_strings", &Ortpy::Value::FromStrings,
             nanobind::arg("strings"),
             nanobind::arg("shape") = std::nullopt)
+        .def_static("create_empty", &Ortpy::Value::CreateEmpty,
+            nanobind::arg("shape"),
+            nanobind::arg("dtype"),
+            nanobind::arg("allocator"))
         .def("numpy", &Ortpy::Value::ToNumpy)
         .def_prop_ro("shape", &Ortpy::Value::GetShape)
         .def_prop_ro("dtype",
@@ -492,7 +499,13 @@ NB_MODULE(_ortpy, m) {
             nanobind::arg("config_key"))
         .def("add_active_lora_adapter",
             &Ortpy::RunOptions::AddActiveLoraAdapter,
-            nanobind::arg("adapter"));
+            nanobind::arg("adapter"))
+#if ORT_API_VERSION >= 24
+        .def("set_sync_stream",
+            &Ortpy::RunOptions::SetSyncStream,
+            nanobind::arg("stream"))
+#endif /** ORT_API_VERSION >= 24 */
+        ;
 
     nanobind::class_<Ortpy::PrepackedWeightsContainer>(m, "PrepackedWeightsContainer")
         .def(nanobind::init<>());
@@ -541,4 +554,17 @@ NB_MODULE(_ortpy, m) {
             nanobind::arg("adapter_file_path"))
         .def(nanobind::init<const nanobind::bytes&>(),
             nanobind::arg("adapter_bytes"));
+
+    nanobind::class_<Ortpy::SyncStream>(m, "SyncStream")
+        .def_prop_ro("handle", &Ortpy::SyncStream::GetHandle);
+
+    nanobind::class_<Ortpy::SharedAllocator>(m, "SharedAllocator")
+        .def_static("get", &Ortpy::SharedAllocator::Get,
+            nanobind::arg("memory_info"));
+
+    m.def("copy_tensors",
+        &Ortpy::CopyTensors,
+        nanobind::arg("src"),
+        nanobind::arg("dst"),
+        nanobind::arg("stream") = nullptr);
 }

@@ -84,6 +84,7 @@ namespace Ortpy
     };
 
     class MemoryInfo;
+    class SyncStream;
 
     struct EpDevice
     {
@@ -97,6 +98,8 @@ namespace Ortpy
         operator const OrtEpDevice*() const;
         /** Declared after MemoryInfo is complete. Implemented in Ortpy.cpp. */
         std::optional<MemoryInfo> GetMemoryInfo(OrtDeviceMemoryType memoryType) const;
+        std::shared_ptr<SyncStream> CreateSyncStream(
+            const std::optional<std::unordered_map<std::string, std::string>>& options = std::nullopt) const;
     private:
         const OrtEpDevice* _ptr{ nullptr };
     };
@@ -336,11 +339,17 @@ namespace Ortpy
         void AddRunConfigEntry(const std::string& configKey, const std::string& configValue);
         std::optional<std::string> GetRunConfigEntry(const std::string& configKey) const;
         void AddActiveLoraAdapter(const LoraAdapter& adapter);
+#if ORT_API_VERSION >= 24
+        void SetSyncStream(std::shared_ptr<SyncStream> stream);
+    private:
+        std::shared_ptr<SyncStream> _syncStream;
+    public:
+#endif /** ORT_API_VERSION >= 24 */
     };
 
     class Value;
     class IoBinding;
-    class LoraAdapter;
+    class SharedAllocator;
 
 #if ORT_API_VERSION >= 24
     struct EpAssignedNode
@@ -406,6 +415,7 @@ namespace Ortpy
         static ONNXTensorElementDataType NpTypeToOrtType(const nanobind::dlpack::dtype& npType);
         static nanobind::dlpack::dtype OrtTypeToNpType(ONNXTensorElementDataType type);
         static std::string NpTypeToName(const nanobind::dlpack::dtype& npType);
+        static nanobind::dlpack::dtype NpNameToType(const std::string& name);
         static size_t GetSizeOfOrtType(ONNXTensorElementDataType type);
 
         Value(OrtValue* ptr);
@@ -413,6 +423,8 @@ namespace Ortpy
         Value(const std::vector<int64_t>& shape, ONNXTensorElementDataType type);
         static Value FromStrings(const std::vector<std::string>& strings,
             const std::optional<std::vector<int64_t>>& shape = std::nullopt);
+        static Value CreateEmpty(const std::vector<int64_t>& shape,
+            const std::string& dtype, const SharedAllocator& allocator);
 
         /** Introspection */
         bool IsTensor() const;
@@ -451,7 +463,6 @@ namespace Ortpy
             const NpArray& values,
             const NpArray& indices);
 
-        /** Sparse tensor query */
         bool IsSparseTensor() const;
         OrtSparseFormat GetSparseFormat() const;
         std::vector<int64_t> GetSparseDenseShape() const;
@@ -532,5 +543,27 @@ namespace Ortpy
         LoraAdapter(const std::string& adapterFilePath);
         LoraAdapter(const nanobind::bytes& adapterBytes);
     };
+
+    class SyncStream : public OrtTypeWrapper<OrtSyncStream, SyncStream>
+    {
+    public:
+        static void ReleaseOrtType(OrtSyncStream* ptr);
+        using OrtTypeWrapper::OrtTypeWrapper;
+        uintptr_t GetHandle() const;
+    };
+
+    /** Non-owning wrapper for ORT-managed allocators */
+    class SharedAllocator
+    {
+    public:
+        SharedAllocator(OrtAllocator* ptr) : _ptr(ptr) {}
+        operator OrtAllocator*() const { return _ptr; }
+        static std::optional<SharedAllocator> Get(const MemoryInfo& memInfo);
+    private:
+        OrtAllocator* _ptr{ nullptr };
+    };
+
+    void CopyTensors(const std::vector<Value>& src, std::vector<Value>& dst,
+                     const SyncStream* stream = nullptr);
 
 }

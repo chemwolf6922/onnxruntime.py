@@ -224,7 +224,7 @@ Legend:
 | ➖ | CreateAndRegisterAllocatorV2 | Allocator management not in scope |
 | ➖ | RunAsync | Async execution not exposed |
 | ✅ | ReleaseLoraAdapter | `LoraAdapter` destructor (via RAII) |
-| ❌ | ReleaseSyncStream | SyncStream not exposed |
+| ✅ | ReleaseSyncStream | `SyncStream` destructor (via RAII) |
 
 ## OrtApi — Version 1.11
 
@@ -446,17 +446,17 @@ Legend:
 | ➖ | ExternalInitializerInfo_GetByteSize | EP graph inspection API; not in scope |
 | ✅ | GetRunConfigEntry | `RunOptions.get_run_config_entry()` |
 | ✅ | EpDevice_MemoryInfo | `EpDevice.get_memory_info()` |
-| ➖ | CreateSharedAllocator | Allocator management not in scope |
-| ➖ | GetSharedAllocator | Allocator management not in scope |
-| ➖ | ReleaseSharedAllocator | Allocator management not in scope |
-| ❌ | GetTensorData | Low-level pointer access; use `Value.numpy()` instead |
+| ➖ | CreateSharedAllocator | Not directly exposed; use `get_shared_allocator()` |
+| ✅ | GetSharedAllocator | `SharedAllocator.get(memory_info)` |
+| ➖ | ReleaseSharedAllocator | Env manages shared allocator lifetime |
+| ➖ | GetTensorData | Low-level pointer access; use `Value.numpy()` instead |
 | ✅ | GetSessionOptionsConfigEntries | `SessionOptions.get_session_config_entries()` |
 | ✅ | SessionGetMemoryInfoForInputs | `Session.get_memory_info_for_inputs()` |
 | ✅ | SessionGetMemoryInfoForOutputs | `Session.get_memory_info_for_outputs()` |
 | ✅ | SessionGetEpDeviceForInputs | `Session.get_ep_device_for_inputs()` |
-| ❌ | CreateSyncStreamForEpDevice | SyncStream not exposed |
-| ❌ | SyncStream_GetHandle | SyncStream not exposed |
-| ❌ | CopyTensors | Tensor copy not exposed |
+| ✅ | CreateSyncStreamForEpDevice | `EpDevice.create_sync_stream(options=None)` |
+| ✅ | SyncStream_GetHandle | `SyncStream.handle` |
+| ✅ | CopyTensors | `ortpy.copy_tensors(src, dst, stream=None)` |
 | ➖ | Graph_GetModelMetadata | EP graph inspection API; not in scope |
 | ✅ | GetModelCompatibilityForEpDevices | `ortpy.get_model_compatibility_for_ep_devices()` |
 | ➖ | CreateExternalInitializerInfo | EP graph inspection API; not in scope |
@@ -488,7 +488,7 @@ Legend:
 | ✅ | EpAssignedNode_GetName | `EpAssignedNode.name` (guarded) |
 | ✅ | EpAssignedNode_GetDomain | `EpAssignedNode.domain` (guarded) |
 | ✅ | EpAssignedNode_GetOperatorType | `EpAssignedNode.operator_type` (guarded) |
-| ❌ | RunOptionsSetSyncStream | SyncStream not exposed |
+| ✅ | RunOptionsSetSyncStream | `RunOptions.set_sync_stream()` (guarded `ORT_API_VERSION >= 24`) |
 | ❌ | GetTensorElementTypeAndShapeDataReference | Low-level reference not exposed |
 
 ---

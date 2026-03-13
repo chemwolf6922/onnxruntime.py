@@ -210,6 +210,28 @@ std::optional<Ortpy::MemoryInfo> Ortpy::EpDevice::GetMemoryInfo(OrtDeviceMemoryT
     return MemoryInfo::Create(name ? name : "Cpu", allocType, id, memType);
 }
 
+std::shared_ptr<Ortpy::SyncStream> Ortpy::EpDevice::CreateSyncStream(
+    const std::optional<std::unordered_map<std::string, std::string>>& options) const
+{
+    OrtKeyValuePairs* kvPairs = nullptr;
+    if (options.has_value() && !options->empty())
+    {
+        GetApi()->CreateKeyValuePairs(&kvPairs);
+        for (const auto& [k, v] : *options)
+        {
+            GetApi()->AddKeyValuePair(kvPairs, k.c_str(), v.c_str());
+        }
+    }
+    OrtSyncStream* stream = nullptr;
+    Ortpy::Status status = GetApi()->CreateSyncStreamForEpDevice(_ptr, kvPairs, &stream);
+    if (kvPairs)
+    {
+        GetApi()->ReleaseKeyValuePairs(kvPairs);
+    }
+    status.Check();
+    return std::shared_ptr<SyncStream>(new SyncStream(stream));
+}
+
 /** Status */
 
 OrtErrorCode Ortpy::Status::GetErrorCode() const
@@ -1573,6 +1595,14 @@ void Ortpy::RunOptions::AddActiveLoraAdapter(const LoraAdapter& adapter)
     status.Check();
 }
 
+#if ORT_API_VERSION >= 24
+void Ortpy::RunOptions::SetSyncStream(std::shared_ptr<SyncStream> stream)
+{
+    _syncStream = std::move(stream);
+    GetApi()->RunOptionsSetSyncStream(_ptr, *_syncStream);
+}
+#endif /** ORT_API_VERSION >= 24 */
+
 /** PrepackedWeightsContainer */
 
 void Ortpy::PrepackedWeightsContainer::ReleaseOrtType(OrtPrepackedWeightsContainer* ptr)
@@ -1855,6 +1885,20 @@ Ortpy::Value::Value(OrtValue* ptr)
         return;
     }
 
+    /** Check for device tensor — can't create numpy view from GPU memory */
+    const OrtMemoryInfo* mi = nullptr;
+    status = GetApi()->GetTensorMemoryInfo(ptr, &mi);
+    status.Check();
+    if (mi != nullptr)
+    {
+        OrtMemoryInfoDeviceType devType;
+        GetApi()->MemoryInfoGetDeviceType(mi, &devType);
+        if (devType != OrtMemoryInfoDeviceType_CPU)
+        {
+            return;
+        }
+    }
+
     auto npType = OrtTypeToNpType(GetType());
     auto ortShape = GetShape();
     std::vector<size_t> npShape(ortShape.begin(), ortShape.end());
@@ -1917,6 +1961,17 @@ Ortpy::Value::Value(const std::vector<int64_t>& ortShape, ONNXTensorElementDataT
         owner,
         nullptr,
         npType);
+}
+
+Ortpy::Value Ortpy::Value::CreateEmpty(const std::vector<int64_t>& shape,
+    const std::string& dtype, const SharedAllocator& allocator)
+{
+    auto ortType = NpTypeToOrtType(NpNameToType(dtype));
+    OrtValue* ortValue = nullptr;
+    Ortpy::Status status = GetApi()->CreateTensorAsOrtValue(
+        allocator, shape.data(), shape.size(), ortType, &ortValue);
+    status.Check();
+    return Value{ ortValue };
 }
 
 Ortpy::Value::operator OrtValue*() const
@@ -2544,6 +2599,30 @@ std::string Ortpy::Value::NpTypeToName(const nanobind::dlpack::dtype& npType)
     return it->second;
 }
 
+nanobind::dlpack::dtype Ortpy::Value::NpNameToType(const std::string& name)
+{
+    static const std::unordered_map<std::string, nanobind::dlpack::dtype> nameMap = {
+        {"bool", nanobind::dtype<bool>()},
+        {"int8", nanobind::dtype<int8_t>()},
+        {"uint8", nanobind::dtype<uint8_t>()},
+        {"int16", nanobind::dtype<int16_t>()},
+        {"uint16", nanobind::dtype<uint16_t>()},
+        {"int32", nanobind::dtype<int32_t>()},
+        {"uint32", nanobind::dtype<uint32_t>()},
+        {"int64", nanobind::dtype<int64_t>()},
+        {"uint64", nanobind::dtype<uint64_t>()},
+        {"float32", nanobind::dtype<float>()},
+        {"float64", nanobind::dtype<double>()},
+        {"float16", { static_cast<uint8_t>(nanobind::dlpack::dtype_code::Float), 16, 1 }},
+    };
+    auto it = nameMap.find(name);
+    if (it == nameMap.end())
+    {
+        throw std::invalid_argument("Unsupported dtype name: " + name);
+    }
+    return it->second;
+}
+
 size_t Ortpy::Value::GetSizeOfOrtType(ONNXTensorElementDataType ortType)
 {
     switch (ortType) {
@@ -2959,5 +3038,56 @@ Ortpy::LoraAdapter::LoraAdapter(const nanobind::bytes& adapterBytes)
 {
     Ortpy::Status status = GetApi()->CreateLoraAdapterFromArray(
         adapterBytes.data(), adapterBytes.size(), nullptr, &_ptr);
+    status.Check();
+}
+
+/** SyncStream */
+
+void Ortpy::SyncStream::ReleaseOrtType(OrtSyncStream* ptr)
+{
+    GetApi()->ReleaseSyncStream(ptr);
+}
+
+uintptr_t Ortpy::SyncStream::GetHandle() const
+{
+    return reinterpret_cast<uintptr_t>(GetApi()->SyncStream_GetHandle(_ptr));
+}
+
+/** SharedAllocator / CopyTensors */
+
+std::optional<Ortpy::SharedAllocator> Ortpy::SharedAllocator::Get(const MemoryInfo& memInfo)
+{
+    OrtAllocator* allocator = nullptr;
+    Ortpy::Status status = GetApi()->GetSharedAllocator(
+        *Env::GetSingleton(), memInfo, &allocator);
+    status.Check();
+    if (allocator == nullptr)
+    {
+        return std::nullopt;
+    }
+    return SharedAllocator{ allocator };
+}
+
+void Ortpy::CopyTensors(const std::vector<Value>& src, std::vector<Value>& dst,
+                         const SyncStream* stream)
+{
+    std::vector<const OrtValue*> srcPtrs;
+    srcPtrs.reserve(src.size());
+    for (const auto& v : src)
+    {
+        srcPtrs.push_back(static_cast<OrtValue*>(v));
+    }
+    std::vector<OrtValue*> dstPtrs;
+    dstPtrs.reserve(dst.size());
+    for (auto& v : dst)
+    {
+        dstPtrs.push_back(static_cast<OrtValue*>(v));
+    }
+    OrtSyncStream* streamPtr = stream
+        ? static_cast<OrtSyncStream*>(*stream)
+        : nullptr;
+    Ortpy::Status status = GetApi()->CopyTensors(
+        *Env::GetSingleton(), srcPtrs.data(), dstPtrs.data(),
+        streamPtr, src.size());
     status.Check();
 }
